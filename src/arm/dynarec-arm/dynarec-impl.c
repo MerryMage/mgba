@@ -124,7 +124,7 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 	if (trace->mode == MODE_ARM) {
 		return;
 	} else {
-		trace->entry = (void (*)(struct ARMCore*)) ctx.code;
+		trace->entry = (void*) ctx.code;
 		EMIT(&ctx, PUSH, AL, 0x4030);
 		EMIT(&ctx, MOV, AL, 4, 0);
 		EMIT(&ctx, LDRI, AL, 5, 0, ARM_PC * sizeof(uint32_t));

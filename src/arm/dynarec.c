@@ -60,3 +60,8 @@ void ARMDynarecCountTrace(struct ARMCore* cpu, uint32_t address, enum ExecutionM
 		cpu->dynarec.currentEntry = trace->entry;
 	}
 }
+
+void ARMDynarecExecuteTrace(struct ARMCore* cpu, void* entry) {
+	void (*fn)(struct ARMCore*) = (void (*)(struct ARMCore*)) entry;
+	fn(cpu);
+}

@@ -144,7 +144,7 @@ struct ARMDynarec {
 	struct Table armTraces;
 	struct Table thumbTraces;
 	void* buffer;
-	void (*currentEntry)(struct ARMCore*);
+	void* currentEntry;
 	void* temporaryMemory;
 };
 
