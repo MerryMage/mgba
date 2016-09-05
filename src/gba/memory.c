@@ -231,12 +231,12 @@ static void GBASetActiveRegion(struct ARMCore* cpu, uint32_t address) {
 						if (gba->idleDetectionFailures > IDLE_LOOP_THRESHOLD) {
 							gba->idleOptimization = IDLE_LOOP_IGNORE;
 						}
-				break;
-			}
-			_analyzeForIdleLoop(gba, cpu, address);
-			break;
-		}
-	} else {
+						break;
+					}
+					_analyzeForIdleLoop(gba, cpu, address);
+					break;
+				}
+			} else {
 				gba->idleDetectionStep = 0;
 			}
 		}
