@@ -245,16 +245,6 @@ void updateEvents(struct ARMDynarecContext* ctx, struct ARMCore* cpu, uint32_t e
 	EMIT(ctx, ADDI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(struct ARMCore, cycles));
 	EMIT(ctx, LDMIA, AL, REG_SCRATCH0, (1 << REG_SCRATCH0) | (1 << REG_SCRATCH1));
 	EMIT(ctx, CMP, AL, REG_SCRATCH1, REG_SCRATCH0); // cpu->nextEvent - cpu->cycles
-	EMIT(ctx, STRI, AL, REG_GUEST_SP, REG_ARMCore, ARM_SP * sizeof(uint32_t));
-	EMIT(ctx, STMIA, AL, REG_ARMCore, REGLIST_GUESTREGS);
-	EMIT(ctx, PUSH, AL, REGLIST_SAVE);
-	EMIT(ctx, BL, LE, ctx->code, cpu->irqh.processEvents);
-	EMIT(ctx, POP, AL, REGLIST_SAVE);
-	EMIT(ctx, LDMIA, AL, REG_ARMCore, REGLIST_GUESTREGS);
-	EMIT(ctx, LDRI, AL, REG_GUEST_SP, REG_ARMCore, ARM_SP * sizeof(uint32_t));
-	EMIT(ctx, LDRI, AL, REG_SCRATCH0, REG_ARMCore, ARM_PC * sizeof(uint32_t));
-	EMIT_IMM(ctx, AL, REG_SCRATCH1, expected_pc);
-	EMIT(ctx, CMP, AL, REG_SCRATCH0, REG_SCRATCH1);
 	EMIT(ctx, POP, NE, REGLIST_RETURN);
 	loadNZCV(ctx);
 }

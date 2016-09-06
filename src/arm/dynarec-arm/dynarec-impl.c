@@ -132,7 +132,7 @@ static bool needsUpdatePC(struct ARMInstructionInfo* info) {
 
 #define RECOMPILE_ALU2(MN) \
 	if (info.op1.reg >= 8) goto interpret; \
-	if (info.operandFormat & ARM_OPERAND_REGISTER_2 && info.op2.reg >= 8) goto interpret; \
+	if ((info.operandFormat & ARM_OPERAND_REGISTER_2) && info.op2.reg >= 8) goto interpret; \
 	do { \
 		assert(info.operandFormat & ARM_OPERAND_REGISTER_1); \
 		unsigned rd = loadReg(&ctx, info.op1.reg); \
@@ -234,7 +234,6 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 //			if (needsUpdatePrefetch(&info)) {
 				flushPrefetch(&ctx, cpu->memory.load16(cpu, ctx.address, 0), cpu->memory.load16(cpu, ctx.address + WORD_SIZE_THUMB, 0));
 //			}
-
 			switch (info.mnemonic) {
 			case ARM_MN_ADC:
 				RECOMPILE_ALU3(ADC);
