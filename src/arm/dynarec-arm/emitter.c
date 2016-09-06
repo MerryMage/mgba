@@ -25,6 +25,7 @@
 #define OP_MOVT  0x03400000
 #define OP_MOVW  0x03000000
 #define OP_MRS   0x010F0000
+#define OP_MSR   0x0120F000
 #define OP_ORR   0x01800000
 #define OP_POP   0x08BD0000
 #define OP_PUSH  0x092D0000
@@ -149,6 +150,10 @@ uint32_t emitMRS(unsigned dst) {
 	return OP_MRS | (dst << 12);
 }
 
+uint32_t emitMSR(bool nzcvq, bool g, unsigned src) {
+    return OP_MSR | (nzcvq << 19) | (g << 18) | src;
+}
+
 uint32_t emitORRI(unsigned dst, unsigned src, unsigned imm) {
 	return OP_ORR | OP_I | calculateAddrMode1(imm) | (dst << 12) | (src << 16);
 }
@@ -213,6 +218,7 @@ void updatePC(struct ARMDynarecContext* ctx, uint32_t address) {
 
 void updateEvents(struct ARMDynarecContext* ctx, struct ARMCore* cpu, uint32_t expected_pc) {
 	assert(!ctx->scratch0_in_use && !ctx->scratch1_in_use);
+	flushNZCV(ctx);
 	EMIT(ctx, ADDI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(struct ARMCore, cycles));
 	EMIT(ctx, LDMIA, AL, REG_SCRATCH0, (1 << REG_SCRATCH0) | (1 << REG_SCRATCH1));
 	EMIT(ctx, CMP, AL, REG_SCRATCH1, REG_SCRATCH0); // cpu->nextEvent - cpu->cycles
@@ -223,6 +229,7 @@ void updateEvents(struct ARMDynarecContext* ctx, struct ARMCore* cpu, uint32_t e
 	EMIT_IMM(ctx, AL, REG_SCRATCH1, expected_pc);
 	EMIT(ctx, CMP, AL, REG_SCRATCH0, REG_SCRATCH1);
 	EMIT(ctx, POP, NE, REGLIST_RETURN);
+	loadNZCV(ctx);
 }
 
 void flushPrefetch(struct ARMDynarecContext* ctx, uint32_t op0, uint32_t op1) {
@@ -300,9 +307,21 @@ void flushReg(struct ARMDynarecContext* ctx, unsigned emureg, unsigned sysreg) {
 	EMIT(ctx, STRI, AL, sysreg, 4, emureg * sizeof(uint32_t));
 }
 
+void loadNZCV(struct ARMDynarecContext* ctx) {
+	assert(!ctx->scratch0_in_use);
+	EMIT(&ctx, LDRI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(ARMCore, cpsr));
+	EMIT(&ctx, MSR, AL, true, false, REG_SCRATCH0);
+}
+
+void flushNZCV(struct ARMDynarecContext* ctx) {
+	assert(!ctx->scratch0_in_use);
+	EMIT(&ctx, MRS, AL, REG_SCRATCH0);
+	EMIT(&ctx, MOV_LSRI, AL, REG_SCRATCH0, REG_SCRATCH0, 24);
+	EMIT(&ctx, STRBI, AL, REG_SCRATCH0, REG_ARMCore, 16 * sizeof(uint32_t) + 3);
+}
+
 void flushCycles(struct ARMDynarecContext* ctx) {
 	assert(!ctx->scratch0_in_use);
-
 	if (ctx->cycles == 0) {
 		return;
 	}

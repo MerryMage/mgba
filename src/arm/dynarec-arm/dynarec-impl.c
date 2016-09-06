@@ -120,6 +120,7 @@ void ARMDynarecEmitPrelude(struct ARMCore* cpu) {
 	EMIT_L(code, PUSH, AL, 0x4DF0);
 //	EMIT_L(code, LDRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
 	EMIT_L(code, LDMIA, AL, 0, REGLIST_GUESTREGS);
+    loadNZCV(ctx);
 	EMIT_L(code, PUSH, AL, REGLIST_RETURN);
 	EMIT_L(code, MOV, AL, 15, 1);
 
@@ -162,7 +163,47 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 //			}
 
 			switch (info.mnemonic) {
-			default:
+            case ARM_MN_ADC:
+            case ARM_MN_ADD:
+            case ARM_MN_AND:
+            case ARM_MN_ASR:
+            case ARM_MN_B:
+            case ARM_MN_BIC:
+            case ARM_MN_BKPT:
+            case ARM_MN_BL:
+            case ARM_MN_BX:
+            case ARM_MN_CMN:
+            case ARM_MN_CMP:
+            case ARM_MN_EOR:
+            case ARM_MN_LDM:
+            case ARM_MN_LDR:
+            case ARM_MN_LSL:
+            case ARM_MN_LSR:
+            case ARM_MN_MLA:
+            case ARM_MN_MOV:
+            case ARM_MN_MRS:
+            case ARM_MN_MSR:
+            case ARM_MN_MUL:
+            case ARM_MN_MVN:
+            case ARM_MN_NEG:
+            case ARM_MN_ORR:
+            case ARM_MN_ROR:
+            case ARM_MN_RSB:
+            case ARM_MN_RSC:
+            case ARM_MN_SBC:
+            case ARM_MN_SMLAL:
+            case ARM_MN_SMULL:
+            case ARM_MN_STM:
+            case ARM_MN_STR:
+            case ARM_MN_SUB:
+            case ARM_MN_SWI:
+            case ARM_MN_SWP:
+            case ARM_MN_TEQ:
+            case ARM_MN_TST:
+            case ARM_MN_UMLAL:
+            case ARM_MN_UMULL:
+            default:
+                flushNZCV(ctx);
 //				EMIT(&ctx, STRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
 				EMIT(&ctx, STMIA, AL, 0, REGLIST_GUESTREGS);
 				EMIT(&ctx, PUSH, AL, REGLIST_SAVE);
@@ -174,6 +215,7 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 				EMIT(&ctx, POP, AL, REGLIST_SAVE);
 //				EMIT(&ctx, LDRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
 				EMIT(&ctx, LDMIA, AL, 0, REGLIST_GUESTREGS);
+                loadNZCV(ctx);
 				break;
 			}
 //			if (needsUpdateEvents(&info)) {

@@ -76,6 +76,7 @@ uint32_t emitMOV_LSRI(unsigned dst, unsigned src, unsigned imm);
 uint32_t emitMOVT(unsigned dst, uint16_t value);
 uint32_t emitMOVW(unsigned dst, uint16_t value);
 uint32_t emitMRS(unsigned dst);
+uint32_t emitMSR(bool nzcvq, bool g, unsigned src);
 uint32_t emitORRI(unsigned dst, unsigned src, unsigned imm);
 uint32_t emitORRS(unsigned dst, unsigned src, unsigned op2);
 uint32_t emitORRSI(unsigned dst, unsigned src, unsigned imm);
@@ -93,6 +94,8 @@ void updateEvents(struct ARMDynarecContext* ctx, struct ARMCore* cpu, uint32_t e
 void flushPrefetch(struct ARMDynarecContext* ctx, uint32_t op0, uint32_t op1);
 unsigned loadReg(struct ARMDynarecContext* ctx, unsigned emureg);
 void flushReg(struct ARMDynarecContext* ctx, unsigned emureg, unsigned sysreg);
+void loadNZCV(struct ARMDynarecContext* ctx);
+void flushNZCV(struct ARMDynarecContext* ctx);
 void flushCycles(struct ARMDynarecContext* ctx);
 
 #endif
