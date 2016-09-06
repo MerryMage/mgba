@@ -64,7 +64,7 @@ static uint32_t calculateAddrMode1(unsigned imm) {
 	abort();
 }
 
-#define DEFINE_ALU_EMITTER(MN) \
+#define DEFINE_ALU3_EMITTER(MN) \
 	uint32_t emit##MN(unsigned dst, unsigned src, unsigned op2) { \
 		return OP_##MN | (dst << 12) | (src << 16) | op2; \
 	} \
@@ -76,6 +76,32 @@ static uint32_t calculateAddrMode1(unsigned imm) {
 	} \
 	uint32_t emit##MN##SI(unsigned dst, unsigned src, unsigned imm) { \
 		return OP_##MN | OP_S | OP_I | calculateAddrMode1(imm) | (dst << 12) | (src << 16); \
+	} \
+	uint32_t emit##MN##_ASRI(unsigned dst, unsigned src1, unsigned src2, unsigned imm) { \
+		return OP_##MN | ADDR1_ASRI | (dst << 12) | (src1 << 16) | ((imm & 0x1F) << 7) | src2; \
+	} \
+	uint32_t emit##MN##_LSLI(unsigned dst, unsigned src1, unsigned src2, unsigned imm) { \
+		return OP_##MN | ADDR1_LSLI | (dst << 12) | (src1 << 16) | ((imm & 0x1F) << 7) | src2; \
+	} \
+	uint32_t emit##MN##_LSRI(unsigned dst, unsigned src1, unsigned src2, unsigned imm) { \
+		return OP_##MN | ADDR1_LSRI | (dst << 12) | (src1 << 16) | ((imm & 0x1F) << 7) | src2; \
+	} \
+	uint32_t emit##MN##_RORI(unsigned dst, unsigned src1, unsigned src2, unsigned imm) { \
+		return OP_##MN | ADDR1_RORI | (dst << 12) | (src1 << 16) | ((imm & 0x1F) << 7) | src2; \
+	}
+
+#define DEFINE_ALU2_EMITTER(MN) \
+	uint32_t emit##MN(unsigned dst, unsigned op2) { \
+		return OP_##MN | (dst << 12) | op2; \
+	} \
+	uint32_t emit##MN##I(unsigned dst, unsigned imm) { \
+		return OP_##MN | OP_I | calculateAddrMode1(imm) | (dst << 12); \
+	} \
+	uint32_t emit##MN##S(unsigned dst, unsigned op2) { \
+		return OP_##MN | OP_S | (dst << 12) | op2; \
+	} \
+	uint32_t emit##MN##SI(unsigned dst, unsigned imm) { \
+		return OP_##MN | OP_S | OP_I | calculateAddrMode1(imm) | (dst << 12); \
 	} \
 	uint32_t emit##MN##_ASRI(unsigned dst, unsigned src, unsigned imm) { \
 		return OP_##MN | ADDR1_ASRI | (dst << 12) | ((imm & 0x1F) << 7) | src; \
@@ -90,24 +116,52 @@ static uint32_t calculateAddrMode1(unsigned imm) {
 		return OP_##MN | ADDR1_RORI | (dst << 12) | ((imm & 0x1F) << 7) | src; \
 	}
 
-DEFINE_ALU_EMITTER(ADC)
-DEFINE_ALU_EMITTER(ADD)
-DEFINE_ALU_EMITTER(AND)
-DEFINE_ALU_EMITTER(BIC)
-DEFINE_ALU_EMITTER(CMN)
-DEFINE_ALU_EMITTER(CMP)
-DEFINE_ALU_EMITTER(EOR)
-DEFINE_ALU_EMITTER(MOV)
-DEFINE_ALU_EMITTER(MVN)
-DEFINE_ALU_EMITTER(ORR)
-DEFINE_ALU_EMITTER(RSB)
-DEFINE_ALU_EMITTER(RSC)
-DEFINE_ALU_EMITTER(SBC)
-DEFINE_ALU_EMITTER(SUB)
-DEFINE_ALU_EMITTER(TEQ)
-DEFINE_ALU_EMITTER(TST)
+#define DEFINE_ALU1_EMITTER(MN) \
+	uint32_t emit##MN(unsigned src, unsigned op2) { \
+		return OP_##MN | (src << 16) | op2; \
+	} \
+	uint32_t emit##MN##I(unsigned src, unsigned imm) { \
+		return OP_##MN | OP_I | calculateAddrMode1(imm) | (src << 16); \
+	} \
+	uint32_t emit##MN##S(unsigned src, unsigned op2) { \
+		return OP_##MN | OP_S | (src << 16) | op2; \
+	} \
+	uint32_t emit##MN##SI(unsigned src, unsigned imm) { \
+		return OP_##MN | OP_S | OP_I | calculateAddrMode1(imm) | (src << 16); \
+	} \
+	uint32_t emit##MN##_ASRI(unsigned src1, unsigned src2, unsigned imm) { \
+		return OP_##MN | ADDR1_ASRI | (src1 << 16) | ((imm & 0x1F) << 7) | src2; \
+	} \
+	uint32_t emit##MN##_LSLI(unsigned src1, unsigned src2, unsigned imm) { \
+		return OP_##MN | ADDR1_LSLI | (src1 << 16) | ((imm & 0x1F) << 7) | src2; \
+	} \
+	uint32_t emit##MN##_LSRI(unsigned src1, unsigned src2, unsigned imm) { \
+		return OP_##MN | ADDR1_LSRI | (src1 << 16) | ((imm & 0x1F) << 7) | src2; \
+	} \
+	uint32_t emit##MN##_RORI(unsigned src1, unsigned src2, unsigned imm) { \
+		return OP_##MN | ADDR1_RORI | (src1 << 16) | ((imm & 0x1F) << 7) | src2; \
+	}
 
-#undef DEFINE_ALU_EMITTER
+DEFINE_ALU3_EMITTER(ADC)
+DEFINE_ALU3_EMITTER(ADD)
+DEFINE_ALU3_EMITTER(AND)
+DEFINE_ALU3_EMITTER(BIC)
+DEFINE_ALU1_EMITTER(CMN)
+DEFINE_ALU1_EMITTER(CMP)
+DEFINE_ALU3_EMITTER(EOR)
+DEFINE_ALU2_EMITTER(MOV)
+DEFINE_ALU2_EMITTER(MVN)
+DEFINE_ALU3_EMITTER(ORR)
+DEFINE_ALU3_EMITTER(RSB)
+DEFINE_ALU3_EMITTER(RSC)
+DEFINE_ALU3_EMITTER(SBC)
+DEFINE_ALU3_EMITTER(SUB)
+DEFINE_ALU1_EMITTER(TEQ)
+DEFINE_ALU1_EMITTER(TST)
+
+#undef DEFINE_ALU3_EMITTER
+#undef DEFINE_ALU2_EMITTER
+#undef DEFINE_ALU1_EMITTER
 
 uint32_t emitMOVT(unsigned dst, uint16_t value) {
 	return OP_MOVT | (dst << 12) | ((value & 0xF000) << 4) | (value & 0x0FFF);
