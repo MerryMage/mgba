@@ -172,11 +172,12 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 
 			switch (info.mnemonic) {
             case ARM_MN_ADC: {
-	            assert(info.operandFormat == ARM_OPERAND_REGISTER_1 | ARM_OPERAND_AFFECTED_1 | ARM_OPERAND_REGISTER_2);
+	            assert(info.operandFormat == (ARM_OPERAND_REGISTER_1 | ARM_OPERAND_AFFECTED_1 | ARM_OPERAND_REGISTER_2));
 	            unsigned rdn = loadReg(&ctx, info.op1.reg);
 	            unsigned rm = loadReg(&ctx, info.op2.reg);
 	            EMIT(&ctx, ADCS, AL, rdn, rdn, rm);
 	            flushReg(&ctx, info.op1.reg, rdn);
+	            scratchesNotInUse(&ctx);
 	            ADD_CYCLES
 	            break;
             }
@@ -215,15 +216,17 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 				default:
 					abort();
 				}
+				scratchesNotInUse(&ctx);
 				ADD_CYCLES
 				break;
 			}
             case ARM_MN_AND: {
-	            assert(info.operandFormat == ARM_OPERAND_REGISTER_1 | ARM_OPERAND_AFFECTED_1 | ARM_OPERAND_REGISTER_2);
+	            assert(info.operandFormat == (ARM_OPERAND_REGISTER_1 | ARM_OPERAND_AFFECTED_1 | ARM_OPERAND_REGISTER_2));
 	            unsigned rdn = loadReg(&ctx, info.op1.reg);
 	            unsigned rm = loadReg(&ctx, info.op2.reg);
 	            EMIT(&ctx, ANDS, AL, rdn, rdn, rm);
 	            flushReg(&ctx, info.op1.reg, rdn);
+	            scratchesNotInUse(&ctx);
 	            ADD_CYCLES
 	            break;
             }

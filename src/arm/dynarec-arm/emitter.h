@@ -95,6 +95,7 @@ void updateEvents(struct ARMDynarecContext* ctx, struct ARMCore* cpu, uint32_t e
 void flushPrefetch(struct ARMDynarecContext* ctx, uint32_t op0, uint32_t op1);
 unsigned loadReg(struct ARMDynarecContext* ctx, unsigned emureg);
 void flushReg(struct ARMDynarecContext* ctx, unsigned emureg, unsigned sysreg);
+void scratchesNotInUse(struct ARMDynarecContext* ctx);
 void loadNZCV(struct ARMDynarecContext* ctx);
 void flushNZCV(struct ARMDynarecContext* ctx);
 void flushCycles(struct ARMDynarecContext* ctx);

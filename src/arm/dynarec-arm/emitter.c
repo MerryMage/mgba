@@ -312,6 +312,11 @@ void flushReg(struct ARMDynarecContext* ctx, unsigned emureg, unsigned sysreg) {
 	EMIT(ctx, STRI, AL, sysreg, 4, emureg * sizeof(uint32_t));
 }
 
+void scratchesNotInUse(struct ARMDynarecContext* ctx) {
+	ctx->scratch0_in_use = false;
+	ctx->scratch1_in_use = false;
+}
+
 void loadNZCV(struct ARMDynarecContext* ctx) {
 	assert(!ctx->scratch0_in_use);
 	EMIT(ctx, LDRI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(struct ARMCore, cpsr));
