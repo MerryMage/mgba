@@ -56,7 +56,7 @@ struct ARMDynarecContext {
 		} \
 	} while (0)
 
-#define DECLARE_ALU_EMITTER(MN)
+#define DECLARE_ALU_EMITTER(MN) \
 	uint32_t emit##MN(unsigned dst, unsigned src, unsigned op2); \
 	uint32_t emit##MN##I(unsigned dst, unsigned src, unsigned imm); \
 	uint32_t emit##MN##S(unsigned dst, unsigned src, unsigned op2); \

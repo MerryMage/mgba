@@ -64,7 +64,7 @@ static uint32_t calculateAddrMode1(unsigned imm) {
 	abort();
 }
 
-#define DEFINE_ALU_EMITTER(MN)
+#define DEFINE_ALU_EMITTER(MN) \
 	uint32_t emit##MN(unsigned dst, unsigned src, unsigned op2) { \
 		return OP_##MN | (dst << 12) | (src << 16) | op2; \
 	} \
