@@ -309,15 +309,15 @@ void flushReg(struct ARMDynarecContext* ctx, unsigned emureg, unsigned sysreg) {
 
 void loadNZCV(struct ARMDynarecContext* ctx) {
 	assert(!ctx->scratch0_in_use);
-	EMIT(&ctx, LDRI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(ARMCore, cpsr));
-	EMIT(&ctx, MSR, AL, true, false, REG_SCRATCH0);
+	EMIT(ctx, LDRI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(ARMCore, cpsr));
+	EMIT(ctx, MSR, AL, true, false, REG_SCRATCH0);
 }
 
 void flushNZCV(struct ARMDynarecContext* ctx) {
 	assert(!ctx->scratch0_in_use);
-	EMIT(&ctx, MRS, AL, REG_SCRATCH0);
-	EMIT(&ctx, MOV_LSRI, AL, REG_SCRATCH0, REG_SCRATCH0, 24);
-	EMIT(&ctx, STRBI, AL, REG_SCRATCH0, REG_ARMCore, 16 * sizeof(uint32_t) + 3);
+	EMIT(ctx, MRS, AL, REG_SCRATCH0);
+	EMIT(ctx, MOV_LSRI, AL, REG_SCRATCH0, REG_SCRATCH0, 24);
+	EMIT(ctx, STRBI, AL, REG_SCRATCH0, REG_ARMCore, 16 * sizeof(uint32_t) + 3);
 }
 
 void flushCycles(struct ARMDynarecContext* ctx) {

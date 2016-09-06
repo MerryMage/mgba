@@ -120,7 +120,8 @@ void ARMDynarecEmitPrelude(struct ARMCore* cpu) {
 	EMIT_L(code, PUSH, AL, 0x4DF0);
 //	EMIT_L(code, LDRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
 	EMIT_L(code, LDMIA, AL, 0, REGLIST_GUESTREGS);
-    loadNZCV(ctx);
+	EMIT_L(code, LDRI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(ARMCore, cpsr));
+	EMIT_L(code, MSR, AL, true, false, REG_SCRATCH0);
 	EMIT_L(code, PUSH, AL, REGLIST_RETURN);
 	EMIT_L(code, MOV, AL, 15, 1);
 
@@ -203,7 +204,7 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
             case ARM_MN_UMLAL:
             case ARM_MN_UMULL:
             default:
-                flushNZCV(ctx);
+                flushNZCV(&ctx);
 //				EMIT(&ctx, STRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
 				EMIT(&ctx, STMIA, AL, 0, REGLIST_GUESTREGS);
 				EMIT(&ctx, PUSH, AL, REGLIST_SAVE);
@@ -215,7 +216,7 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 				EMIT(&ctx, POP, AL, REGLIST_SAVE);
 //				EMIT(&ctx, LDRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
 				EMIT(&ctx, LDMIA, AL, 0, REGLIST_GUESTREGS);
-                loadNZCV(ctx);
+                loadNZCV(&ctx);
 				break;
 			}
 //			if (needsUpdateEvents(&info)) {
