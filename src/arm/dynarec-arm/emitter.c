@@ -309,7 +309,7 @@ void flushReg(struct ARMDynarecContext* ctx, unsigned emureg, unsigned sysreg) {
 
 void loadNZCV(struct ARMDynarecContext* ctx) {
 	assert(!ctx->scratch0_in_use);
-	EMIT(ctx, LDRI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(ARMCore, cpsr));
+	EMIT(ctx, LDRI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(struct ARMCore, cpsr));
 	EMIT(ctx, MSR, AL, true, false, REG_SCRATCH0);
 }
 

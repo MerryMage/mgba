@@ -120,8 +120,8 @@ void ARMDynarecEmitPrelude(struct ARMCore* cpu) {
 	EMIT_L(code, PUSH, AL, 0x4DF0);
 //	EMIT_L(code, LDRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
 	EMIT_L(code, LDMIA, AL, 0, REGLIST_GUESTREGS);
-	EMIT_L(code, LDRI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(ARMCore, cpsr));
-	EMIT_L(code, MSR, AL, true, false, REG_SCRATCH0);
+	EMIT_L(code, LDRI, AL, 2, REG_ARMCore, offsetof(struct ARMCore, cpsr));
+	EMIT_L(code, MSR, AL, true, false, 2);
 	EMIT_L(code, PUSH, AL, REGLIST_RETURN);
 	EMIT_L(code, MOV, AL, 15, 1);
 
