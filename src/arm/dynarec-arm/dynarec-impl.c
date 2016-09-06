@@ -114,6 +114,7 @@ static bool needsUpdatePC(struct ARMInstructionInfo* info) {
 
 void ARMDynarecEmitPrelude(struct ARMCore* cpu) {
 	code_t* code = (code_t*) cpu->dynarec.buffer;
+	cpu->dynarec.execute = (void (*)(struct ARMCore*, void*)) code;
 
 	// Common prologue
 	EMIT_L(code, PUSH, AL, 0x4DF0);

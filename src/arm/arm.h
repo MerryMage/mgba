@@ -146,6 +146,7 @@ struct ARMDynarec {
 	void* buffer;
 	void* currentEntry;
 	void* temporaryMemory;
+	void (*execute)(struct ARMCore* cpu, void* entry);
 };
 
 struct ARMCore {
