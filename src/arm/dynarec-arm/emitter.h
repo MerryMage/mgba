@@ -8,6 +8,23 @@
 
 #include "util/common.h"
 
+#define REG_ARMCore  0
+#define REG_SCRATCH0 1
+#define REG_SCRATCH1 2
+#define REG_GUEST_PC 3
+#define REG_GUEST_R0 4
+#define REG_GUEST_R1 5
+#define REG_GUEST_R2 6
+#define REG_GUEST_R3 7
+#define REG_GUEST_R4 8
+#define REG_GUEST_R5 10
+#define REG_GUEST_R6 11
+#define REG_GUEST_R7 12
+#define REG_GUEST_SP 14
+#define REGLIST_SAVE 0x500F
+#define REGLIST_RETURN 0x8001
+#define REGLIST_GUESTREGS 0x1DF0 /*except SP*/
+
 #define COND_EQ 0x00000000
 #define COND_NE 0x10000000
 #define COND_MI 0x40000000
@@ -20,6 +37,8 @@ struct ARMDynarecContext {
 	code_t* code;
 	uint32_t address;
 	int32_t cycles;
+	bool scratch0_in_use;
+	bool scratch1_in_use;
 };
 
 #define EMIT_L(DEST, OPCODE, COND, ...) \

@@ -8,12 +8,15 @@
 #include "arm/arm.h"
 #include "util/memory.h"
 
+void ARMDynarecEmitPrelude(struct ARMCore* cpu);
+
 void ARMDynarecInit(struct ARMCore* cpu) {
 	BumpAllocatorInit(&cpu->dynarec.traceAlloc, sizeof(struct ARMDynarecTrace));
 	TableInit(&cpu->dynarec.armTraces, 0x2000, 0);
 	TableInit(&cpu->dynarec.thumbTraces, 0x2000, 0);
 	cpu->dynarec.buffer = executableMemoryMap(0x200000);
 	cpu->dynarec.temporaryMemory = anonymousMemoryMap(0x2000);
+	ARMDynarecEmitPrelude(cpu);
 }
 
 void ARMDynarecDeinit(struct ARMCore* cpu) {
@@ -62,6 +65,5 @@ void ARMDynarecCountTrace(struct ARMCore* cpu, uint32_t address, enum ExecutionM
 }
 
 void ARMDynarecExecuteTrace(struct ARMCore* cpu, void* entry) {
-	void (*fn)(struct ARMCore*) = (void (*)(struct ARMCore*)) entry;
-	fn(cpu);
+	((void(*)(struct ARMCore* cpu, void* entry)) cpu->dynarec.buffer)(cpu, entry);
 }

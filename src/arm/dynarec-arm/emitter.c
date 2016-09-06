@@ -3,6 +3,8 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+#include <assert.h>
+
 #include "arm/decoder.h"
 #include "arm/dynarec.h"
 #include "arm/isa-thumb.h"
@@ -204,42 +206,106 @@ uint32_t emitSUBSI(unsigned dst, unsigned src, unsigned imm) {
 }
 
 void updatePC(struct ARMDynarecContext* ctx, uint32_t address) {
-	EMIT_IMM(ctx, AL, 5, address);
-	EMIT(ctx, STRI, AL, 5, 4, ARM_PC * sizeof(uint32_t));
+	EMIT_IMM(ctx, AL, REG_GUEST_PC, address);
+	EMIT(ctx, STRI, AL, REG_GUEST_PC, REG_ARMCore, ARM_PC * sizeof(uint32_t));
 }
 
 void updateEvents(struct ARMDynarecContext* ctx, struct ARMCore* cpu) {
-	EMIT(ctx, ADDI, AL, 0, 4, offsetof(struct ARMCore, cycles));
-	EMIT(ctx, LDMIA, AL, 0, 6);
-	EMIT(ctx, SUBS, AL, 0, 2, 1);
-	EMIT(ctx, MOV, AL, 0, 4);
+	assert(!ctx->scratch0_in_use && !ctx->scratch1_in_use);
+	EMIT(ctx, ADDI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(struct ARMCore, cycles));
+	EMIT(ctx, LDMIA, AL, REG_SCRATCH0, REG_SCRATCH0 | REG_SCRATCH1);
+	EMIT(ctx, CMP, AL, REG_SCRATCH1, REG_SCRATCH0); // cpu->nextEvent - cpu->cycles
+	EMIT(ctx, PUSH, AL, REGLIST_SAVE);
 	EMIT(ctx, BL, LE, ctx->code, cpu->irqh.processEvents);
-	EMIT(ctx, LDRI, AL, 1, 4, ARM_PC * sizeof(uint32_t));
-	EMIT(ctx, CMP, AL, 1, 5);
-	EMIT(ctx, POP, NE, 0x8030);
+	EMIT(ctx, POP, AL, REGLIST_SAVE);
+	EMIT(ctx, LDRI, AL, REG_SCRATCH0, REG_ARMCore, ARM_PC * sizeof(uint32_t));
+	EMIT(ctx, CMP, AL, REG_SCRATCH0, REG_GUEST_PC);
+	EMIT(ctx, POP, NE, REGLIST_RETURN);
 }
 
 void flushPrefetch(struct ARMDynarecContext* ctx, uint32_t op0, uint32_t op1) {
-	EMIT_IMM(ctx, AL, 1, op0);
-	EMIT_IMM(ctx, AL, 2, op1);
-	EMIT(ctx, ADDI, AL, 0, 4, offsetof(struct ARMCore, prefetch));
-	EMIT(ctx, STMIA, AL, 0, 6);
+	assert(!ctx->scratch0_in_use);
+	EMIT_IMM(ctx, AL, REG_SCRATCH0, op0);
+	EMIT(ctx, STRI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(struct ARMCore, prefetch) + 0 * sizeof(uint32_t));
+	EMIT_IMM(ctx, AL, REG_SCRATCH0, op1);
+	EMIT(ctx, STRI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(struct ARMCore, prefetch) + 1 * sizeof(uint32_t));
 }
 
-void loadReg(struct ARMDynarecContext* ctx, unsigned emureg, unsigned sysreg) {
-	EMIT(ctx, LDRI, AL, sysreg, 4, emureg * sizeof(uint32_t)); 
+unsigned loadReg(struct ARMDynarecContext* ctx, unsigned emureg) {
+	switch (emureg) {
+	case 0:
+		return REG_GUEST_R0;
+	case 1:
+		return REG_GUEST_R1;
+	case 2:
+		return REG_GUEST_R2;
+	case 3:
+		return REG_GUEST_R3;
+	case 4:
+		return REG_GUEST_R4;
+	case 5:
+		return REG_GUEST_R5;
+	case 6:
+		return REG_GUEST_R6;
+	case 7:
+		return REG_GUEST_R7;
+	case 13:
+		return REG_GUEST_SP;
+	case 15:
+		assert(!"loadReg(15) not allowed");
+	}
+
+	unsigned sysreg;
+	if (!ctx->scratch0_in_use) {
+		ctx->scratch0_in_use = true;
+		sysreg = REG_SCRATCH0;
+	} else if (!ctx->scratch1_in_use) {
+		ctx->scratch1_in_use = true;
+		sysreg = REG_SCRATCH1;
+	} else {
+		assert(!"unreachable");
+	}
+	EMIT(ctx, LDRI, AL, sysreg, 4, emureg * sizeof(uint32_t));
+	return sysreg;
 }
 
 void flushReg(struct ARMDynarecContext* ctx, unsigned emureg, unsigned sysreg) {
-	EMIT(ctx, STRI, AL, sysreg, 4, emureg * sizeof(uint32_t)); 
+	switch (emureg) {
+	case 0:
+	case 1:
+	case 2:
+	case 3:
+	case 4:
+	case 5:
+	case 6:
+	case 7:
+	case 13:
+		return;
+	case 15:
+		assert(!"flushReg(15) not allowed");
+	}
+
+	switch (sysreg) {
+	case REG_SCRATCH0:
+		ctx->scratch0_in_use = false;
+		break;
+	case REG_SCRATCH1:
+		ctx->scratch1_in_use = false;
+		break;
+	default:
+		assert(!"unreachable");
+	}
+	EMIT(ctx, STRI, AL, sysreg, 4, emureg * sizeof(uint32_t));
 }
 
 void flushCycles(struct ARMDynarecContext* ctx) {
+	assert(!ctx->scratch0_in_use);
+
 	if (ctx->cycles == 0) {
 		return;
 	}
-	EMIT(ctx, LDRI, AL, 0, 4, offsetof(struct ARMCore, cycles)); 
-	EMIT(ctx, ADDI, AL, 0, 0, ctx->cycles);
-	EMIT(ctx, STRI, AL, 0, 4, offsetof(struct ARMCore, cycles));
+	EMIT(ctx, LDRI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(struct ARMCore, cycles));
+	EMIT(ctx, ADDI, AL, REG_SCRATCH0, REG_SCRATCH0, ctx->cycles);
+	EMIT(ctx, STRI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(struct ARMCore, cycles));
 	ctx->cycles = 0;
 }

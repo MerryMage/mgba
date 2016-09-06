@@ -112,6 +112,25 @@ static bool needsUpdatePC(struct ARMInstructionInfo* info) {
 		EMIT(&ctx, STRBI, AL, 1, 4, 16 * sizeof(uint32_t) + 3); \
 	}
 
+void ARMDynarecEmitPrelude(struct ARMCore* cpu) {
+	void* code = cpu->dynarec.buffer;
+
+	// Common prologue
+	EMIT_L(code, PUSH, AL, 0x4DF0);
+	EMIT_L(code, LDRI, AL, REG_GUEST_PC, 0, ARM_PC * sizeof(uint32_t));
+	EMIT_L(code, LDRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
+	EMIT_L(code, LDMIA, AL, 0, REGLIST_GUESTREGS);
+	EMIT_L(code, PUSH, AL, REGLIST_RETURN);
+
+	// Common epilogue
+	EMIT_L(code, STRI, AL, REG_GUEST_PC, 0, ARM_PC * sizeof(uint32_t));
+	EMIT_L(code, STRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
+	EMIT_L(code, STMIA, AL, 0, REGLIST_GUESTREGS);
+	EMIT_L(code, POP, AL, 0x8DF0);
+
+	cpu->dynarec.buffer = code;
+}
+
 void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace) {
 #ifndef NDEBUG
 	printf("%08X (%c)\n", trace->start, trace->mode == MODE_THUMB ? 'T' : 'A');
@@ -120,14 +139,13 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 		.code = cpu->dynarec.buffer,
 		.address = trace->start,
 		.cycles = 0,
+		.scratch0_in_use = false,
+		.scratch1_in_use = false,
 	};
 	if (trace->mode == MODE_ARM) {
 		return;
 	} else {
 		trace->entry = (void*) ctx.code;
-		EMIT(&ctx, PUSH, AL, 0x4030);
-		EMIT(&ctx, MOV, AL, 4, 0);
-		EMIT(&ctx, LDRI, AL, 5, 0, ARM_PC * sizeof(uint32_t));
 		__attribute__((aligned(64))) struct ARMInstructionInfo info;
 		while (true) {
 			uint16_t instruction = cpu->memory.load16(cpu, ctx.address, 0);
@@ -141,35 +159,19 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 				flushCycles(&ctx);
 			}
 
-			unsigned rd = 0;
-			unsigned rn = 1;
-			unsigned rm = 2;
 			switch (info.mnemonic) {
-			case ARM_MN_ADD:
-				RECOMPILE_ALU(ADD);
-				break;
-			case ARM_MN_AND:
-				RECOMPILE_ALU(AND);
-				break;
-			case ARM_MN_BIC:
-				RECOMPILE_ALU(BIC);
-				break;
-			case ARM_MN_EOR:
-				RECOMPILE_ALU(EOR);
-				break;
-			case ARM_MN_ORR:
-				RECOMPILE_ALU(ORR);
-				break;
-			case ARM_MN_SUB:
-				RECOMPILE_ALU(SUB);
-				break;
 			default:
+				EMIT_L(code, STRI, AL, REG_GUEST_PC, 0, ARM_PC * sizeof(uint32_t));
+				EMIT_L(code, STRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
+				EMIT_L(code, STMIA, AL, 0, REGLIST_GUESTREGS | 0x3);
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wtype-limits"
 				EMIT_IMM(&ctx, AL, 1, instruction);
 #pragma GCC diagnostic pop
-				EMIT(&ctx, MOV, AL, 0, 4);
 				EMIT(&ctx, BL, AL, ctx.code, _thumbTable[instruction >> 6]);
+				EMIT_L(code, LDRI, AL, REG_GUEST_PC, 0, ARM_PC * sizeof(uint32_t));
+				EMIT_L(code, LDRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
+				EMIT_L(code, LDMIA, AL, 0, REGLIST_GUESTREGS | 0x3);
 				break;
 			}
 			if (needsUpdateEvents(&info)) {
@@ -181,7 +183,7 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 		}
 		flushPrefetch(&ctx, cpu->memory.load16(cpu, ctx.address, 0), cpu->memory.load16(cpu, ctx.address + WORD_SIZE_THUMB, 0));
 		flushCycles(&ctx);
-		EMIT(&ctx, POP, AL, 0x8030);
+		EMIT(&ctx, POP, AL, REGLIST_RETURN);
 	}
 	__clear_cache(trace->entry, ctx.code);
 	cpu->dynarec.buffer = ctx.code;
