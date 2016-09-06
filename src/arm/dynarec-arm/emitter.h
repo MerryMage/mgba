@@ -11,7 +11,6 @@
 #define REG_ARMCore  0
 #define REG_SCRATCH0 1
 #define REG_SCRATCH1 2
-#define REG_GUEST_PC 3
 #define REG_GUEST_R0 4
 #define REG_GUEST_R1 5
 #define REG_GUEST_R2 6
@@ -90,7 +89,7 @@ uint32_t emitSUBS(unsigned dst, unsigned src1, unsigned src2);
 uint32_t emitSUBSI(unsigned dst, unsigned src1, unsigned src2);
 
 void updatePC(struct ARMDynarecContext* ctx, uint32_t address);
-void updateEvents(struct ARMDynarecContext* ctx, struct ARMCore* cpu);
+void updateEvents(struct ARMDynarecContext* ctx, struct ARMCore* cpu, uint32_t expected_pc);
 void flushPrefetch(struct ARMDynarecContext* ctx, uint32_t op0, uint32_t op1);
 unsigned loadReg(struct ARMDynarecContext* ctx, unsigned emureg);
 void flushReg(struct ARMDynarecContext* ctx, unsigned emureg, unsigned sysreg);

@@ -206,20 +206,22 @@ uint32_t emitSUBSI(unsigned dst, unsigned src, unsigned imm) {
 }
 
 void updatePC(struct ARMDynarecContext* ctx, uint32_t address) {
-	EMIT_IMM(ctx, AL, REG_GUEST_PC, address);
-	EMIT(ctx, STRI, AL, REG_GUEST_PC, REG_ARMCore, ARM_PC * sizeof(uint32_t));
+	assert(!ctx->scratch0_in_use);
+	EMIT_IMM(ctx, AL, REG_SCRATCH0, address);
+	EMIT(ctx, STRI, AL, REG_SCRATCH0, REG_ARMCore, ARM_PC * sizeof(uint32_t));
 }
 
-void updateEvents(struct ARMDynarecContext* ctx, struct ARMCore* cpu) {
+void updateEvents(struct ARMDynarecContext* ctx, struct ARMCore* cpu, uint32_t expected_pc) {
 	assert(!ctx->scratch0_in_use && !ctx->scratch1_in_use);
 	EMIT(ctx, ADDI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(struct ARMCore, cycles));
-	EMIT(ctx, LDMIA, AL, REG_SCRATCH0, REG_SCRATCH0 | REG_SCRATCH1);
+	EMIT(ctx, LDMIA, AL, REG_SCRATCH0, (1 << REG_SCRATCH0) | (1 << REG_SCRATCH1));
 	EMIT(ctx, CMP, AL, REG_SCRATCH1, REG_SCRATCH0); // cpu->nextEvent - cpu->cycles
 	EMIT(ctx, PUSH, AL, REGLIST_SAVE);
 	EMIT(ctx, BL, LE, ctx->code, cpu->irqh.processEvents);
 	EMIT(ctx, POP, AL, REGLIST_SAVE);
 	EMIT(ctx, LDRI, AL, REG_SCRATCH0, REG_ARMCore, ARM_PC * sizeof(uint32_t));
-	EMIT(ctx, CMP, AL, REG_SCRATCH0, REG_GUEST_PC);
+	EMIT_IMM(ctx, AL, REG_SCRATCH1, expected_pc);
+	EMIT(ctx, CMP, AL, REG_SCRATCH0, REG_SCRATCH1);
 	EMIT(ctx, POP, NE, REGLIST_RETURN);
 }
 

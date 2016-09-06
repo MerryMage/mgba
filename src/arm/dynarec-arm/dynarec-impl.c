@@ -118,15 +118,13 @@ void ARMDynarecEmitPrelude(struct ARMCore* cpu) {
 
 	// Common prologue
 	EMIT_L(code, PUSH, AL, 0x4DF0);
-	EMIT_L(code, LDRI, AL, REG_GUEST_PC, 0, ARM_PC * sizeof(uint32_t));
-	EMIT_L(code, LDRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
+//	EMIT_L(code, LDRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
 	EMIT_L(code, LDMIA, AL, 0, REGLIST_GUESTREGS);
 	EMIT_L(code, PUSH, AL, REGLIST_RETURN);
 	EMIT_L(code, MOV, AL, 15, 1);
 
 	// Common epilogue
-	EMIT_L(code, STRI, AL, REG_GUEST_PC, 0, ARM_PC * sizeof(uint32_t));
-	EMIT_L(code, STRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
+//	EMIT_L(code, STRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
 	EMIT_L(code, STMIA, AL, 0, REGLIST_GUESTREGS);
 	EMIT_L(code, POP, AL, 0x8DF0);
 
@@ -137,6 +135,7 @@ void ARMDynarecEmitPrelude(struct ARMCore* cpu) {
 void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace) {
 #ifndef NDEBUG
 	printf("%08X (%c)\n", trace->start, trace->mode == MODE_THUMB ? 'T' : 'A');
+	printf("%u\n", cpu->nextEvent - cpu->cycles);
 #endif
 	struct ARMDynarecContext ctx = {
 		.code = cpu->dynarec.buffer,
@@ -154,34 +153,32 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 			uint16_t instruction = cpu->memory.load16(cpu, ctx.address, 0);
 			ARMDecodeThumb(instruction, &info);
 			ctx.address += WORD_SIZE_THUMB;
-			if (needsUpdatePC(&info)) {
+//			if (needsUpdatePC(&info)) {
 				updatePC(&ctx, ctx.address + WORD_SIZE_THUMB);
-			}
-			if (needsUpdatePrefetch(&info)) {
+//			}
+//			if (needsUpdatePrefetch(&info)) {
 				flushPrefetch(&ctx, cpu->memory.load16(cpu, ctx.address, 0), cpu->memory.load16(cpu, ctx.address + WORD_SIZE_THUMB, 0));
 				flushCycles(&ctx);
-			}
+//			}
 
 			switch (info.mnemonic) {
 			default:
-				EMIT(&ctx, STRI, AL, REG_GUEST_PC, 0, ARM_PC * sizeof(uint32_t));
-				EMIT(&ctx, STRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
-				EMIT(&ctx, STMIA, AL, 0, REGLIST_GUESTREGS | 0x3);
+//				EMIT(&ctx, STRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
+				EMIT(&ctx, STMIA, AL, 0, REGLIST_GUESTREGS);
 				EMIT(&ctx, PUSH, AL, REGLIST_SAVE);
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wtype-limits"
 				EMIT_IMM(&ctx, AL, 1, instruction);
 #pragma GCC diagnostic pop
-				EMIT(&ctx, POP, AL, REGLIST_SAVE);
 				EMIT(&ctx, BL, AL, ctx.code, _thumbTable[instruction >> 6]);
-				EMIT(&ctx, LDRI, AL, REG_GUEST_PC, 0, ARM_PC * sizeof(uint32_t));
-				EMIT(&ctx, LDRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
-				EMIT(&ctx, LDMIA, AL, 0, REGLIST_GUESTREGS | 0x3);
+				EMIT(&ctx, POP, AL, REGLIST_SAVE);
+//				EMIT(&ctx, LDRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
+				EMIT(&ctx, LDMIA, AL, 0, REGLIST_GUESTREGS);
 				break;
 			}
-			if (needsUpdateEvents(&info)) {
-				updateEvents(&ctx, cpu);
-			}
+//			if (needsUpdateEvents(&info)) {
+				updateEvents(&ctx, cpu, ctx.address + WORD_SIZE_THUMB);
+//			}
 			if (info.branchType >= ARM_BRANCH || info.traps) {
 				break;
 			}

@@ -57,6 +57,8 @@ source_group("GB board" FILES ${GB_SRC})
 source_group("Utilities" FILES ${UTIL_SRC})
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
+include_directories(/opt/vc/include/)
+
 if(NOT CMAKE_BUILD_TYPE)
 	set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type (e.g. Release or Debug)" FORCE)
 endif()
@@ -127,6 +129,8 @@ set(PGO_DIR "/tmp/gba-pgo/" CACHE PATH "Profiling-guided optimization profiles p
 mark_as_advanced(BUILD_LTO BUILD_PGO PGO_STAGE_2 PGO_DIR)
 set(PGO_PRE_FLAGS "-fprofile-generate=${PGO_DIR} -fprofile-arcs")
 set(PGO_POST_FLAGS "-fprofile-use=${PGO_DIR} -fbranch-probabilities")
+
+set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -funwind-tables")
 
 if(BUILD_PGO AND NOT PGO_STAGE_2)
 	set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} ${PGO_PRE_FLAGS}")
