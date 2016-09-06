@@ -125,7 +125,7 @@ void ARMDynarecEmitPrelude(struct ARMCore* cpu) {
 
 	// Common prologue
 	EMIT_L(code, PUSH, AL, 0x4DF0);
-//	EMIT_L(code, LDRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
+	EMIT_L(code, LDRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
 	EMIT_L(code, LDMIA, AL, 0, REGLIST_GUESTREGS);
 	EMIT_L(code, LDRI, AL, 2, REG_ARMCore, offsetof(struct ARMCore, cpsr));
 	EMIT_L(code, MSR, AL, true, false, 2);
@@ -133,7 +133,7 @@ void ARMDynarecEmitPrelude(struct ARMCore* cpu) {
 	EMIT_L(code, MOV, AL, 15, 1);
 
 	// Common epilogue
-//	EMIT_L(code, STRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
+	EMIT_L(code, STRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
 	EMIT_L(code, STMIA, AL, 0, REGLIST_GUESTREGS);
 	EMIT_L(code, POP, AL, 0x8DF0);
 
@@ -263,7 +263,7 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
             case ARM_MN_TST:
             default:
                 flushNZCV(&ctx);
-//				EMIT(&ctx, STRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
+				EMIT(&ctx, STRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
 				EMIT(&ctx, STMIA, AL, 0, REGLIST_GUESTREGS);
 				EMIT(&ctx, PUSH, AL, REGLIST_SAVE);
 #pragma GCC diagnostic push
@@ -272,7 +272,7 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 #pragma GCC diagnostic pop
 				EMIT(&ctx, BL, AL, ctx.code, _thumbTable[instruction >> 6]);
 				EMIT(&ctx, POP, AL, REGLIST_SAVE);
-//				EMIT(&ctx, LDRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
+				EMIT(&ctx, LDRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
 				EMIT(&ctx, LDMIA, AL, 0, REGLIST_GUESTREGS);
                 loadNZCV(&ctx);
 				break;
