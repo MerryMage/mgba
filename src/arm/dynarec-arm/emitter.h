@@ -56,44 +56,51 @@ struct ARMDynarecContext {
 		} \
 	} while (0)
 
-uint32_t calculateAddrMode1(unsigned imm);
+#define DECLARE_ALU_EMITTER(MN)
+	uint32_t emit##MN(unsigned dst, unsigned src, unsigned op2); \
+	uint32_t emit##MN##I(unsigned dst, unsigned src, unsigned imm); \
+	uint32_t emit##MN##S(unsigned dst, unsigned src, unsigned op2); \
+	uint32_t emit##MN##SI(unsigned dst, unsigned src, unsigned imm); \
+	uint32_t emit##MN##_ASRI(unsigned dst, unsigned src, unsigned imm); \
+	uint32_t emit##MN##_LSLI(unsigned dst, unsigned src, unsigned imm); \
+	uint32_t emit##MN##_LSRI(unsigned dst, unsigned src, unsigned imm); \
+	uint32_t emit##MN##_RORI(unsigned dst, unsigned src, unsigned imm);
 
-uint32_t emitADCS(unsigned dst, unsigned src, unsigned op2);
-uint32_t emitADD(unsigned dst, unsigned src, unsigned op2);
-uint32_t emitADDI(unsigned dst, unsigned src, unsigned imm);
-uint32_t emitADDS(unsigned dst, unsigned src, unsigned op2);
-uint32_t emitADDSI(unsigned dst, unsigned src, unsigned imm);
-uint32_t emitANDI(unsigned dst, unsigned src, unsigned imm);
-uint32_t emitANDS(unsigned dst, unsigned src, unsigned op2);
-uint32_t emitANDSI(unsigned dst, unsigned src, unsigned imm);
-uint32_t emitB(void* base, void* target);
-uint32_t emitBICI(unsigned dst, unsigned src, unsigned imm);
-uint32_t emitBICS(unsigned dst, unsigned src, unsigned op2);
-uint32_t emitBICSI(unsigned dst, unsigned src, unsigned imm);
-uint32_t emitBL(void* base, void* target);
-uint32_t emitCMP(unsigned src1, unsigned src2);
-uint32_t emitEORI(unsigned dst, unsigned src, unsigned imm);
-uint32_t emitEORS(unsigned dst, unsigned src, unsigned op2);
-uint32_t emitEORSI(unsigned dst, unsigned src, unsigned imm);
-uint32_t emitLDMIA(unsigned base, unsigned mask);
-uint32_t emitLDRI(unsigned reg, unsigned base, int offset);
-uint32_t emitMOV(unsigned dst, unsigned src);
-uint32_t emitMOV_LSRI(unsigned dst, unsigned src, unsigned imm);
+DECLARE_ALU_EMITTER(ADC)
+DECLARE_ALU_EMITTER(ADD)
+DECLARE_ALU_EMITTER(AND)
+DECLARE_ALU_EMITTER(BIC)
+DECLARE_ALU_EMITTER(CMN)
+DECLARE_ALU_EMITTER(CMP)
+DECLARE_ALU_EMITTER(EOR)
+DECLARE_ALU_EMITTER(MOV)
+DECLARE_ALU_EMITTER(MVN)
+DECLARE_ALU_EMITTER(ORR)
+DECLARE_ALU_EMITTER(RSB)
+DECLARE_ALU_EMITTER(RSC)
+DECLARE_ALU_EMITTER(SBC)
+DECLARE_ALU_EMITTER(SUB)
+DECLARE_ALU_EMITTER(TEQ)
+DECLARE_ALU_EMITTER(TST)
+
+#undef DECLARE_ALU_EMITTER
+
 uint32_t emitMOVT(unsigned dst, uint16_t value);
 uint32_t emitMOVW(unsigned dst, uint16_t value);
-uint32_t emitMRS(unsigned dst);
-uint32_t emitMSR(bool nzcvq, bool g, unsigned src);
-uint32_t emitORRI(unsigned dst, unsigned src, unsigned imm);
-uint32_t emitORRS(unsigned dst, unsigned src, unsigned op2);
-uint32_t emitORRSI(unsigned dst, unsigned src, unsigned imm);
+
+uint32_t emitLDMIA(unsigned base, unsigned mask);
+uint32_t emitLDRI(unsigned reg, unsigned base, int offset);
 uint32_t emitPOP(unsigned mask);
 uint32_t emitPUSH(unsigned mask);
 uint32_t emitSTMIA(unsigned base, unsigned mask);
 uint32_t emitSTRI(unsigned reg, unsigned base, int offset);
 uint32_t emitSTRBI(unsigned reg, unsigned base, int offset);
-uint32_t emitSUBI(unsigned dst, unsigned src1, unsigned src2);
-uint32_t emitSUBS(unsigned dst, unsigned src1, unsigned src2);
-uint32_t emitSUBSI(unsigned dst, unsigned src1, unsigned src2);
+
+uint32_t emitB(void* base, void* target);
+uint32_t emitBL(void* base, void* target);
+
+uint32_t emitMRS(unsigned dst);
+uint32_t emitMSR(bool nzcvq, bool g, unsigned src);
 
 void updatePC(struct ARMDynarecContext* ctx, uint32_t address);
 void updateEvents(struct ARMDynarecContext* ctx, struct ARMCore* cpu, uint32_t expected_pc);

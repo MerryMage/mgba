@@ -84,40 +84,51 @@ static bool needsUpdatePC(struct ARMInstructionInfo* info) {
 	ctx.cycles += info.sInstructionCycles * cpu->memory.activeSeqCycles16; \
 	ctx.cycles += info.nInstructionCycles * cpu->memory.activeNonseqCycles16;
 
-#define RECOMPILE_ALU(MN) \
-	if (info.operandFormat & ARM_OPERAND_REGISTER_2) { \
-		loadReg(&ctx, info.op2.reg, rn); \
-	} \
-	if (info.operandFormat & ARM_OPERAND_REGISTER_3) { \
-		loadReg(&ctx, info.op3.reg, rm); \
-	} \
-	switch (info.operandFormat & (ARM_OPERAND_2 | ARM_OPERAND_3)) { \
-	case ARM_OPERAND_REGISTER_2 | ARM_OPERAND_REGISTER_3: \
-		EMIT(&ctx, MN ## S, AL, rd, rn, rm); \
-		break; \
-	case ARM_OPERAND_REGISTER_2 | ARM_OPERAND_IMMEDIATE_3: \
-		EMIT(&ctx, MN ## SI, AL, rd, rn, info.op3.immediate); \
-		break; \
-	case ARM_OPERAND_IMMEDIATE_2: \
-		loadReg(&ctx, info.op1.reg, rd); \
-		EMIT(&ctx, MN ## SI, AL, rd, rd, info.op2.immediate); \
-		break; \
-	case ARM_OPERAND_REGISTER_2: \
-		loadReg(&ctx, info.op1.reg, rd); \
-		EMIT(&ctx, MN ## S, AL, rd, rd, rn); \
-		break; \
-	default: \
-		abort(); \
-	} \
-	flushReg(&ctx, info.op1.reg, rd); \
-	ctx.cycles += 1 + info.iCycles; \
-	ctx.cycles += info.sInstructionCycles * cpu->memory.activeSeqCycles16; \
-	ctx.cycles += info.nInstructionCycles * cpu->memory.activeNonseqCycles16; \
-	if (info.affectsCPSR) { \
-		EMIT(&ctx, MRS, AL, 1); \
-		EMIT(&ctx, MOV_LSRI, AL, 1, 1, 24); \
-		EMIT(&ctx, STRBI, AL, 1, 4, 16 * sizeof(uint32_t) + 3); \
-	}
+#define RECOMPILE_ALU(MN, POSTFIX)
+	do { \
+		unsigned rd = loadReg(&ctx, info.op1.reg); \
+		switch (info.operandFormat & (ARM_OPERAND_2 | ARM_OPERAND_3 | ARM_OPERAND_4)) { \
+		case ARM_OPERAND_REGISTER_2 | ARM_OPERAND_REGISTER_3: { \
+			unsigned rn = loadReg(&ctx, info.op2.reg); \
+			unsigned rm = loadReg(&ctx, info.op3.reg); \
+			if (info.affectsCPSR) \
+				EMIT(&ctx, MN##S, AL, rd, rn, rm); \
+			else \
+				EMIT(&ctx, MN, AL, rd, rn, rm); \
+			break; \
+		} \
+		case ARM_OPERAND_REGISTER_2 | ARM_OPERAND_IMMEDIATE_3: { \
+			unsigned rn = loadReg(&ctx, info.op2.reg); \
+			if (info.affectsCPSR) \
+				EMIT(&ctx, MN##SI, AL, rd, rn, info.op3.immediate); \
+			else \
+				EMIT(&ctx, MN##I, AL, rd, rn, info.op3.immediate); \
+			break; \
+		} \
+		case ARM_OPERAND_REGISTER_2: { \
+			unsigned rm = loadReg(&ctx, info.op2.reg); \
+			if (info.affectsCPSR) \
+				EMIT(&ctx, MN##S, AL, rd, rd, rm); \
+			else \
+				EMIT(&ctx, MN, AL, rd, rd, rm); \
+			break; \
+		} \
+		case ARM_OPERAND_IMMEDIATE_2: { \
+			if (info.affectsCPSR) \
+				EMIT(&ctx, MN##SI, AL, rd, rd, info.op2.immediate); \
+			else \
+				EMIT(&ctx, MN##I, AL, rd, rd, info.op2.immediate); \
+			break; \
+		} \
+		default: \
+			abort(); \
+		} \
+		if (info.operandFormat & ARM_OPERAND_AFFECTED_1) { \
+			flushReg(&ctx, info.op1.reg, rdn); \
+		} \
+		scratchesNotInUse(&ctx); \
+		ADD_CYCLES \
+	} until(0)
 
 void ARMDynarecEmitPrelude(struct ARMCore* cpu) {
 	code_t* code = (code_t*) cpu->dynarec.buffer;
@@ -171,111 +182,86 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 //			}
 
 			switch (info.mnemonic) {
-            case ARM_MN_ADC: {
-	            assert(info.operandFormat == (ARM_OPERAND_REGISTER_1 | ARM_OPERAND_AFFECTED_1 | ARM_OPERAND_REGISTER_2));
-	            unsigned rdn = loadReg(&ctx, info.op1.reg);
-	            unsigned rm = loadReg(&ctx, info.op2.reg);
-	            EMIT(&ctx, ADCS, AL, rdn, rdn, rm);
-	            flushReg(&ctx, info.op1.reg, rdn);
-	            scratchesNotInUse(&ctx);
-	            ADD_CYCLES
-	            break;
-            }
-			case ARM_MN_ADD: {
-				switch (info.operandFormat) {
-				case ARM_OPERAND_REGISTER_1 | ARM_OPERAND_AFFECTED_1 | ARM_OPERAND_REGISTER_2 | ARM_OPERAND_REGISTER_3: {
-					unsigned rd = loadReg(&ctx, info.op1.reg);
-					unsigned rn = loadReg(&ctx, info.op2.reg);
-					unsigned rm = loadReg(&ctx, info.op3.reg);
-					if (info.affectsCPSR)
-						EMIT(&ctx, ADDS, AL, rd, rn, rm);
-					else
-						EMIT(&ctx, ADD, AL, rd, rn, rm);
-					flushReg(&ctx, info.op1.reg, rd);
-					break;
-				}
-				case ARM_OPERAND_REGISTER_1 | ARM_OPERAND_AFFECTED_1 | ARM_OPERAND_REGISTER_2 | ARM_OPERAND_IMMEDIATE_3: {
-					unsigned rd = loadReg(&ctx, info.op1.reg);
-					unsigned rn = loadReg(&ctx, info.op2.reg);
-					uint32_t imm = info.op3.immediate;
-					if (info.affectsCPSR)
-						EMIT(&ctx, ADDSI, AL, rd, rn, imm);
-					else
-						EMIT(&ctx, ADDI, AL, rd, rn, imm);
-					flushReg(&ctx, info.op1.reg, rd);
-					break;
-				}
-				case ARM_OPERAND_REGISTER_1 | ARM_OPERAND_AFFECTED_1 | ARM_OPERAND_REGISTER_2: {
-					unsigned rdn = loadReg(&ctx, info.op1.reg);
-					unsigned rm = loadReg(&ctx, info.op2.reg);
-					if (info.affectsCPSR)
-						EMIT(&ctx, ADDS, AL, rdn, rdn, rm);
-					else
-						EMIT(&ctx, ADD, AL, rdn, rdn, rm);
-					flushReg(&ctx, info.op1.reg, rdn);
-					break;
-				}
-				case ARM_OPERAND_REGISTER_1 | ARM_OPERAND_AFFECTED_1 | ARM_OPERAND_IMMEDIATE_2: {
-					unsigned rdn = loadReg(&ctx, info.op1.reg);
-					uint32_t imm = info.op2.immediate;
-					if (info.affectsCPSR)
-						EMIT(&ctx, ADDSI, AL, rdn, rdn, imm);
-					else
-						EMIT(&ctx, ADDI, AL, rdn, rdn, imm);
-					flushReg(&ctx, info.op1.reg, rdn);
-					break;
-				}
-				default:
-					assert(!"inv.");
-				}
-				scratchesNotInUse(&ctx);
-				ADD_CYCLES
+			case ARM_MN_ADC:
+				RECOMPILE_ALU(ADC);
 				break;
-			}
-            case ARM_MN_AND: {
-	            assert(info.operandFormat == (ARM_OPERAND_REGISTER_1 | ARM_OPERAND_AFFECTED_1 | ARM_OPERAND_REGISTER_2));
-	            unsigned rdn = loadReg(&ctx, info.op1.reg);
-	            unsigned rm = loadReg(&ctx, info.op2.reg);
-	            EMIT(&ctx, ANDS, AL, rdn, rdn, rm);
-	            flushReg(&ctx, info.op1.reg, rdn);
-	            scratchesNotInUse(&ctx);
-	            ADD_CYCLES
-	            break;
-            }
-            case ARM_MN_ASR:
-            case ARM_MN_B:
-            case ARM_MN_BIC:
-            case ARM_MN_BKPT:
-            case ARM_MN_BL:
-            case ARM_MN_BX:
-            case ARM_MN_CMN:
-            case ARM_MN_CMP:
-            case ARM_MN_EOR:
-            case ARM_MN_LDM:
-            case ARM_MN_LDR:
-            case ARM_MN_LSL:
-            case ARM_MN_LSR:
-            case ARM_MN_MLA:
-            case ARM_MN_MOV:
-            case ARM_MN_MRS:
-            case ARM_MN_MSR:
-            case ARM_MN_MUL:
-            case ARM_MN_MVN:
-            case ARM_MN_NEG:
-            case ARM_MN_ORR:
-            case ARM_MN_ROR:
-            case ARM_MN_RSB:
-            case ARM_MN_RSC:
-            case ARM_MN_SBC:
-            case ARM_MN_STM:
-            case ARM_MN_STR:
-            case ARM_MN_SUB:
-            case ARM_MN_SWI:
-            case ARM_MN_TEQ:
-            case ARM_MN_TST:
-		interpret:
-            default:
-                flushNZCV(&ctx);
+			case ARM_MN_ADD:
+				RECOMPILE_ALU(ADD);
+				break;
+			case ARM_MN_ASR:
+				goto interpret;
+			case ARM_MN_B:
+				goto interpret;
+			case ARM_MN_BIC:
+				RECOMPILE_ALU(BIC);
+				break;
+			case ARM_MN_BKPT:
+				goto interpret;
+			case ARM_MN_BL:
+				goto interpret;
+			case ARM_MN_BX:
+				goto interpret;
+			case ARM_MN_CMN:
+				goto interpret;
+			case ARM_MN_CMP:
+				RECOMPILE_ALU(CMP);
+				break;
+			case ARM_MN_EOR:
+				RECOMPILE_ALU(EOR);
+				break;
+			case ARM_MN_LDM:
+				goto interpret;
+			case ARM_MN_LDR:
+				goto interpret;
+			case ARM_MN_LSL:
+				goto interpret;
+			case ARM_MN_LSR:
+				goto interpret;
+			case ARM_MN_MLA:
+				goto interpret;
+			case ARM_MN_MOV:
+				RECOMPILE_ALU(MOV);
+				break;
+			case ARM_MN_MRS:
+			case ARM_MN_MSR:
+			case ARM_MN_MUL:
+			case ARM_MN_MVN:
+				RECOMPILE_ALU(MVN);
+				break;
+			case ARM_MN_NEG:
+				goto interpret;
+			case ARM_MN_ORR:
+				RECOMPILE_ALU(ORR);
+				break;
+			case ARM_MN_ROR:
+				goto interpret;
+			case ARM_MN_RSB:
+				RECOMPILE_ALU(RSB);
+				break;
+			case ARM_MN_RSC:
+				RECOMPILE_ALU(RSC);
+				break;
+			case ARM_MN_SBC:
+				RECOMPILE_ALU(SBC);
+				break;
+			case ARM_MN_STM:
+				goto interpret;
+			case ARM_MN_STR:
+				goto interpret;
+			case ARM_MN_SUB:
+				RECOMPILE_ALU(SUB);
+				break;
+			case ARM_MN_SWI:
+				goto interpret;
+			case ARM_MN_TEQ:
+				RECOMPILE_ALU(TEQ);
+				break;
+			case ARM_MN_TST:
+				RECOMPILE_ALU(TST);
+				break;
+			interpret:
+			default:
+				flushNZCV(&ctx);
 				EMIT(&ctx, STRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
 				EMIT(&ctx, STMIA, AL, 0, REGLIST_GUESTREGS);
 				EMIT(&ctx, PUSH, AL, REGLIST_SAVE);
@@ -287,7 +273,7 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 				EMIT(&ctx, POP, AL, REGLIST_SAVE);
 				EMIT(&ctx, LDMIA, AL, 0, REGLIST_GUESTREGS);
 				EMIT(&ctx, LDRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
-                loadNZCV(&ctx);
+				loadNZCV(&ctx);
 				break;
 			}
 //			if (needsUpdateEvents(&info)) {
