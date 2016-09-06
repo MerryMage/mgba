@@ -185,6 +185,33 @@ static bool needsUpdatePC(struct ARMInstructionInfo* info) {
 		ADD_CYCLES \
 	} while (0)
 
+
+#define RECOMPILE_SHIFT(MN) \
+	do { \
+		assert(info.operandFormat & ARM_OPERAND_REGISTER_1); \
+		unsigned rd = loadReg(&ctx, info.op1.reg); \
+		switch (info.operandFormat & (ARM_OPERAND_2 | ARM_OPERAND_3 | ARM_OPERAND_4)) { \
+		case ARM_OPERAND_REGISTER_2 | ARM_OPERAND_IMMEDIATE_3: { \
+			unsigned rn = loadReg(&ctx, info.op2.reg); \
+			assert(info.affectsCPSR); \
+			EMIT(&ctx, MOVS_##MN##I, AL, rd, rn, info.op3.immediate); \
+			break; \
+		} \
+		case ARM_OPERAND_REGISTER_2: { \
+			unsigned rm = loadReg(&ctx, info.op2.reg); \
+			assert(info.affectsCPSR); \
+			EMIT(&ctx, MOVS_##MN, AL, rd, rd, rm); \
+			break; \
+		} \
+		default: \
+			abort(); \
+		} \
+		assert(info.operandFormat & ARM_OPERAND_AFFECTED_1); \
+		flushReg(&ctx, info.op1.reg, rd); \
+		scratchesNotInUse(&ctx); \
+		ADD_CYCLES \
+	} while (0)
+
 void ARMDynarecEmitPrelude(struct ARMCore* cpu) {
 	code_t* code = (code_t*) cpu->dynarec.buffer;
 	cpu->dynarec.execute = (void (*)(struct ARMCore*, void*)) code;
@@ -242,7 +269,8 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 				RECOMPILE_ALU3(ADD);
 				break;
 			case ARM_MN_ASR:
-				goto interpret;
+				RECOMPILE_SHIFT(ASR);
+				break;
 			case ARM_MN_B:
 				goto interpret;
 			case ARM_MN_BIC:
@@ -267,17 +295,22 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 			case ARM_MN_LDR:
 				goto interpret;
 			case ARM_MN_LSL:
-				goto interpret;
+				RECOMPILE_SHIFT(LSL);
+				break;
 			case ARM_MN_LSR:
-				goto interpret;
+				RECOMPILE_SHIFT(LSR);
+				break;
 			case ARM_MN_MLA:
 				goto interpret;
 			case ARM_MN_MOV:
 				RECOMPILE_ALU2(MOV);
 				break;
 			case ARM_MN_MRS:
+				goto interpret;
 			case ARM_MN_MSR:
+				goto interpret;
 			case ARM_MN_MUL:
+				goto interpret;
 			case ARM_MN_MVN:
 				RECOMPILE_ALU2(MVN);
 				break;
@@ -287,7 +320,8 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 				RECOMPILE_ALU3(ORR);
 				break;
 			case ARM_MN_ROR:
-				goto interpret;
+				RECOMPILE_SHIFT(ROR);
+				break;
 			case ARM_MN_RSB:
 				RECOMPILE_ALU3(RSB);
 				break;
