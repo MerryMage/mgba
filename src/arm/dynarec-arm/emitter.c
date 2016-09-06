@@ -271,8 +271,8 @@ unsigned loadReg(struct ARMDynarecContext* ctx, unsigned emureg) {
 		return REG_GUEST_R6;
 	case 7:
 		return REG_GUEST_R7;
-//	case 13:
-//		return REG_GUEST_SP;
+	case 13:
+		return REG_GUEST_SP;
 	}
 
 	unsigned sysreg;
@@ -303,7 +303,7 @@ void flushReg(struct ARMDynarecContext* ctx, unsigned emureg, unsigned sysreg) {
 	case 5:
 	case 6:
 	case 7:
-//	case 13:
+	case 13:
 		return;
 	}
 

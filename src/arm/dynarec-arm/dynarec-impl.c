@@ -184,7 +184,6 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 			case ARM_MN_ADD: {
 				switch (info.operandFormat) {
 				case ARM_OPERAND_REGISTER_1 | ARM_OPERAND_AFFECTED_1 | ARM_OPERAND_REGISTER_2 | ARM_OPERAND_REGISTER_3: {
-					goto interpret;
 					unsigned rd = loadReg(&ctx, info.op1.reg);
 					unsigned rn = loadReg(&ctx, info.op2.reg);
 					unsigned rm = loadReg(&ctx, info.op3.reg);
@@ -196,7 +195,6 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 					break;
 				}
 				case ARM_OPERAND_REGISTER_1 | ARM_OPERAND_AFFECTED_1 | ARM_OPERAND_REGISTER_2 | ARM_OPERAND_IMMEDIATE_3: {
-					goto interpret;
 					unsigned rd = loadReg(&ctx, info.op1.reg);
 					unsigned rn = loadReg(&ctx, info.op2.reg);
 					uint32_t imm = info.op3.immediate;
@@ -208,7 +206,6 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 					break;
 				}
 				case ARM_OPERAND_REGISTER_1 | ARM_OPERAND_AFFECTED_1 | ARM_OPERAND_REGISTER_2: {
-					goto interpret;
 					unsigned rdn = loadReg(&ctx, info.op1.reg);
 					unsigned rm = loadReg(&ctx, info.op2.reg);
 					if (info.affectsCPSR)
@@ -219,7 +216,6 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 					break;
 				}
 				case ARM_OPERAND_REGISTER_1 | ARM_OPERAND_AFFECTED_1 | ARM_OPERAND_IMMEDIATE_2: {
-					goto interpret;
 					unsigned rdn = loadReg(&ctx, info.op1.reg);
 					uint32_t imm = info.op2.immediate;
 					if (info.affectsCPSR)
