@@ -92,7 +92,7 @@ uint32_t emitSUBSI(unsigned dst, unsigned src1, unsigned src2);
 void updatePC(struct ARMDynarecContext* ctx, uint32_t address);
 void updateEvents(struct ARMDynarecContext* ctx, struct ARMCore* cpu);
 void flushPrefetch(struct ARMDynarecContext* ctx, uint32_t op0, uint32_t op1);
-void loadReg(struct ARMDynarecContext* ctx, unsigned emureg, unsigned sysreg);
+unsigned loadReg(struct ARMDynarecContext* ctx, unsigned emureg);
 void flushReg(struct ARMDynarecContext* ctx, unsigned emureg, unsigned sysreg);
 void flushCycles(struct ARMDynarecContext* ctx);
 
