@@ -279,7 +279,7 @@ unsigned loadReg(struct ARMDynarecContext* ctx, unsigned emureg) {
 	} else {
 		assert(!"unreachable");
 	}
-	EMIT(ctx, LDRI, AL, sysreg, 4, emureg * sizeof(uint32_t));
+	EMIT(ctx, LDRI, AL, sysreg, REG_ARMCore, emureg * sizeof(uint32_t));
 	return sysreg;
 }
 
@@ -301,15 +301,17 @@ void flushReg(struct ARMDynarecContext* ctx, unsigned emureg, unsigned sysreg) {
 
 	switch (sysreg) {
 	case REG_SCRATCH0:
+		assert(ctx->scratch0_in_use);
 		ctx->scratch0_in_use = false;
 		break;
 	case REG_SCRATCH1:
+		assert(ctx->scratch1_in_use);
 		ctx->scratch1_in_use = false;
 		break;
 	default:
 		assert(!"unreachable");
 	}
-	EMIT(ctx, STRI, AL, sysreg, 4, emureg * sizeof(uint32_t));
+	EMIT(ctx, STRI, AL, sysreg, REG_ARMCore, emureg * sizeof(uint32_t));
 }
 
 void scratchesNotInUse(struct ARMDynarecContext* ctx) {
