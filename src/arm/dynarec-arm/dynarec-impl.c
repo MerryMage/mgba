@@ -3,6 +3,8 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+#include <assert.h>
+
 #include "arm/decoder.h"
 #include "arm/dynarec.h"
 #include "arm/isa-thumb.h"
@@ -171,25 +173,28 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 			switch (info.mnemonic) {
             case ARM_MN_ADC: {
 	            assert(info.operandFormat == ARM_OPERAND_REGISTER_1 | ARM_OPERAND_AFFECTED_1 | ARM_OPERAND_REGISTER_2);
-	            unsigned rdn = loadReg(&ctx, info.op1);
-	            unsigned rm = loadReg(&ctx, info.op2);
+	            unsigned rdn = loadReg(&ctx, info.op1.reg);
+	            unsigned rm = loadReg(&ctx, info.op2.reg);
 	            EMIT(&ctx, ADCS, AL, rdn, rdn, rm);
-	            flushReg(&ctx, info.op1, rdn);
+	            flushReg(&ctx, info.op1.reg, rdn);
 	            ADD_CYCLES
 	            break;
             }
-            case ARM_MN_ADD: {
-	            goto default;
-            }
+
             case ARM_MN_AND: {
 	            assert(info.operandFormat == ARM_OPERAND_REGISTER_1 | ARM_OPERAND_AFFECTED_1 | ARM_OPERAND_REGISTER_2);
-	            unsigned rdn = loadReg(&ctx, info.op1);
-	            unsigned rm = loadReg(&ctx, info.op2);
+	            unsigned rdn = loadReg(&ctx, info.op1.reg);
+	            unsigned rm = loadReg(&ctx, info.op2.reg);
 	            EMIT(&ctx, ANDS, AL, rdn, rdn, rm);
-	            flushReg(&ctx, info.op1, rdn);
+	            flushReg(&ctx, info.op1.reg, rdn);
 	            ADD_CYCLES
 	            break;
             }
+
+			case ARM_MN_ADD: {
+
+			}
+
             case ARM_MN_ASR:
             case ARM_MN_B:
             case ARM_MN_BIC:
