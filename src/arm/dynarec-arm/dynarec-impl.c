@@ -84,7 +84,7 @@ static bool needsUpdatePC(struct ARMInstructionInfo* info) {
 	ctx.cycles += info.sInstructionCycles * cpu->memory.activeSeqCycles16; \
 	ctx.cycles += info.nInstructionCycles * cpu->memory.activeNonseqCycles16;
 
-#define RECOMPILE_ALU(MN) \
+#define RECOMPILE_ALU3(MN) \
 	do { \
 		unsigned rd = loadReg(&ctx, info.op1.reg); \
 		switch (info.operandFormat & (ARM_OPERAND_2 | ARM_OPERAND_3 | ARM_OPERAND_4)) { \
@@ -123,9 +123,59 @@ static bool needsUpdatePC(struct ARMInstructionInfo* info) {
 		default: \
 			abort(); \
 		} \
-		if (info.operandFormat & ARM_OPERAND_AFFECTED_1) { \
-			flushReg(&ctx, info.op1.reg, rdn); \
+		assert(info.operandFormat & ARM_OPERAND_AFFECTED_1); \
+		flushReg(&ctx, info.op1.reg, rdn); \
+		scratchesNotInUse(&ctx); \
+		ADD_CYCLES \
+	} while (0)
+
+#define RECOMPILE_ALU2(MN) \
+	do { \
+		unsigned rd = loadReg(&ctx, info.op1.reg); \
+		switch (info.operandFormat & (ARM_OPERAND_2 | ARM_OPERAND_3 | ARM_OPERAND_4)) { \
+		case ARM_OPERAND_REGISTER_2: { \
+			unsigned rm = loadReg(&ctx, info.op2.reg); \
+			if (info.affectsCPSR) \
+				EMIT(&ctx, MN##S, AL, rd, rm); \
+			else \
+				EMIT(&ctx, MN, AL, rd, rm); \
+			break; \
 		} \
+		case ARM_OPERAND_IMMEDIATE_2: { \
+			if (info.affectsCPSR) \
+				EMIT(&ctx, MN##SI, AL, rd, info.op2.immediate); \
+			else \
+				EMIT(&ctx, MN##I, AL, rd, info.op2.immediate); \
+			break; \
+		} \
+		default: \
+			abort(); \
+		} \
+		assert(info.operandFormat & ARM_OPERAND_AFFECTED_1); \
+		flushReg(&ctx, info.op1.reg, rdn); \
+		scratchesNotInUse(&ctx); \
+		ADD_CYCLES \
+	} while (0)
+
+#define RECOMPILE_ALU1(MN) \
+	do { \
+		unsigned rm = loadReg(&ctx, info.op1.reg); \
+		switch (info.operandFormat & (ARM_OPERAND_2 | ARM_OPERAND_3 | ARM_OPERAND_4)) { \
+		case ARM_OPERAND_REGISTER_2: { \
+			unsigned rn = loadReg(&ctx, info.op2.reg); \
+			assert(info.affectsCPSR) \
+			EMIT(&ctx, MN, AL, rm, rn); \
+			break; \
+		} \
+		case ARM_OPERAND_IMMEDIATE_2: { \
+			assert(info.affectsCPSR) \
+			EMIT(&ctx, MN, AL, rm, info.op2.immediate); \
+			break; \
+		} \
+		default: \
+			abort(); \
+		} \
+		assert(!(info.operandFormat & ARM_OPERAND_AFFECTED_1)); \
 		scratchesNotInUse(&ctx); \
 		ADD_CYCLES \
 	} while (0)
@@ -183,17 +233,17 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 
 			switch (info.mnemonic) {
 			case ARM_MN_ADC:
-				RECOMPILE_ALU(ADC);
+				RECOMPILE_ALU3(ADC);
 				break;
 			case ARM_MN_ADD:
-				RECOMPILE_ALU(ADD);
+				RECOMPILE_ALU3(ADD);
 				break;
 			case ARM_MN_ASR:
 				goto interpret;
 			case ARM_MN_B:
 				goto interpret;
 			case ARM_MN_BIC:
-				RECOMPILE_ALU(BIC);
+				RECOMPILE_ALU3(BIC);
 				break;
 			case ARM_MN_BKPT:
 				goto interpret;
@@ -204,10 +254,10 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 			case ARM_MN_CMN:
 				goto interpret;
 			case ARM_MN_CMP:
-				RECOMPILE_ALU(CMP);
+				RECOMPILE_ALU1(CMP);
 				break;
 			case ARM_MN_EOR:
-				RECOMPILE_ALU(EOR);
+				RECOMPILE_ALU3(EOR);
 				break;
 			case ARM_MN_LDM:
 				goto interpret;
@@ -220,44 +270,44 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 			case ARM_MN_MLA:
 				goto interpret;
 			case ARM_MN_MOV:
-				RECOMPILE_ALU(MOV);
+				RECOMPILE_ALU2(MOV);
 				break;
 			case ARM_MN_MRS:
 			case ARM_MN_MSR:
 			case ARM_MN_MUL:
 			case ARM_MN_MVN:
-				RECOMPILE_ALU(MVN);
+				RECOMPILE_ALU2(MVN);
 				break;
 			case ARM_MN_NEG:
 				goto interpret;
 			case ARM_MN_ORR:
-				RECOMPILE_ALU(ORR);
+				RECOMPILE_ALU3(ORR);
 				break;
 			case ARM_MN_ROR:
 				goto interpret;
 			case ARM_MN_RSB:
-				RECOMPILE_ALU(RSB);
+				RECOMPILE_ALU3(RSB);
 				break;
 			case ARM_MN_RSC:
-				RECOMPILE_ALU(RSC);
+				RECOMPILE_ALU3(RSC);
 				break;
 			case ARM_MN_SBC:
-				RECOMPILE_ALU(SBC);
+				RECOMPILE_ALU3(SBC);
 				break;
 			case ARM_MN_STM:
 				goto interpret;
 			case ARM_MN_STR:
 				goto interpret;
 			case ARM_MN_SUB:
-				RECOMPILE_ALU(SUB);
+				RECOMPILE_ALU3(SUB);
 				break;
 			case ARM_MN_SWI:
 				goto interpret;
 			case ARM_MN_TEQ:
-				RECOMPILE_ALU(TEQ);
+				RECOMPILE_ALU1(TEQ);
 				break;
 			case ARM_MN_TST:
-				RECOMPILE_ALU(TST);
+				RECOMPILE_ALU1(TST);
 				break;
 			interpret:
 			default:

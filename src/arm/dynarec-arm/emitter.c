@@ -123,12 +123,6 @@ static uint32_t calculateAddrMode1(unsigned imm) {
 	uint32_t emit##MN##I(unsigned src, unsigned imm) { \
 		return OP_##MN | OP_I | calculateAddrMode1(imm) | (src << 16); \
 	} \
-	uint32_t emit##MN##S(unsigned src, unsigned op2) { \
-		return OP_##MN | OP_S | (src << 16) | op2; \
-	} \
-	uint32_t emit##MN##SI(unsigned src, unsigned imm) { \
-		return OP_##MN | OP_S | OP_I | calculateAddrMode1(imm) | (src << 16); \
-	} \
 	uint32_t emit##MN##_ASRI(unsigned src1, unsigned src2, unsigned imm) { \
 		return OP_##MN | ADDR1_ASRI | (src1 << 16) | ((imm & 0x1F) << 7) | src2; \
 	} \
