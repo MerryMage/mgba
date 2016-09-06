@@ -180,7 +180,44 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 	            ADD_CYCLES
 	            break;
             }
-
+			case ARM_MN_ADD: {
+				switch (info.operandFormat) {
+				case ARM_OPERAND_REGISTER_1 | ARM_OPERAND_AFFECTED_1 | ARM_OPERAND_REGISTER_2 | ARM_OPERAND_REGISTER_3: {
+					unsigned rd = loadReg(&ctx, info.op1.reg);
+					unsigned rn = loadReg(&ctx, info.op2.reg);
+					unsigned rm = loadReg(&ctx, info.op3.reg);
+					EMIT(&ctx, ADDS, AL, rd, rn, rm);
+					flushReg(&ctx, info.op1.reg, rd);
+					break;
+				}
+				case ARM_OPERAND_REGISTER_1 | ARM_OPERAND_AFFECTED_1 | ARM_OPERAND_REGISTER_2 | ARM_OPERAND_IMMEDIATE_3: {
+					unsigned rd = loadReg(&ctx, info.op1.reg);
+					unsigned rn = loadReg(&ctx, info.op2.reg);
+					uint32_t imm = loadReg(&ctx, info.op3.immediate);
+					EMIT(&ctx, ADDSI, AL, rd, rn, imm);
+					flushReg(&ctx, info.op1.reg, rd);
+					break;
+				}
+				case ARM_OPERAND_REGISTER_1 | ARM_OPERAND_AFFECTED_1 | ARM_OPERAND_REGISTER_2: {
+					unsigned rdn = loadReg(&ctx, info.op1.reg);
+					unsigned rm = loadReg(&ctx, info.op2.reg);
+					EMIT(&ctx, ADDS, AL, rdn, rdn, rm);
+					flushReg(&ctx, info.op1.reg, rdn);
+					break;
+				}
+				case ARM_OPERAND_REGISTER_1 | ARM_OPERAND_AFFECTED_1 | ARM_OPERAND_IMMEDIATE_2: {
+					unsigned rdn = loadReg(&ctx, info.op1.reg);
+					uint32_t imm = loadReg(&ctx, info.op2.immediate);
+					EMIT(&ctx, ADDSI, AL, rdn, rdn, imm);
+					flushReg(&ctx, info.op1.reg, rdn);
+					break;
+				}
+				default:
+					abort();
+				}
+				ADD_CYCLES
+				break;
+			}
             case ARM_MN_AND: {
 	            assert(info.operandFormat == ARM_OPERAND_REGISTER_1 | ARM_OPERAND_AFFECTED_1 | ARM_OPERAND_REGISTER_2);
 	            unsigned rdn = loadReg(&ctx, info.op1.reg);
@@ -190,11 +227,6 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 	            ADD_CYCLES
 	            break;
             }
-
-			case ARM_MN_ADD: {
-
-			}
-
             case ARM_MN_ASR:
             case ARM_MN_B:
             case ARM_MN_BIC:
