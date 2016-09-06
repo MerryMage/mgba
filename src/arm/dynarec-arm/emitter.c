@@ -65,10 +65,10 @@ static uint32_t calculateAddrMode1(unsigned imm) {
 }
 
 #define SHIFT(MN, S, I, ARGS, BODY) \
-	uint32_t emit##MN##S##_ASR##I ARGS { return OP##MN | ADDR1_ASR | BODY; } \
-	uint32_t emit##MN##S##_LSL##I ARGS { return OP##MN | ADDR1_LSL | BODY; } \
-	uint32_t emit##MN##S##_LSR##I ARGS { return OP##MN | ADDR1_LSR | BODY; } \
-	uint32_t emit##MN##S##_ROR##I ARGS { return OP##MN | ADDR1_ROR | BODY; }
+	uint32_t emit##MN##S##_ASR##I ARGS { return OP_##MN | ADDR1_ASR | BODY; } \
+	uint32_t emit##MN##S##_LSL##I ARGS { return OP_##MN | ADDR1_LSL | BODY; } \
+	uint32_t emit##MN##S##_LSR##I ARGS { return OP_##MN | ADDR1_LSR | BODY; } \
+	uint32_t emit##MN##S##_ROR##I ARGS { return OP_##MN | ADDR1_ROR | BODY; }
 
 #define DEFINE_ALU3_EMITTER(MN) \
 	uint32_t emit##MN(unsigned dst, unsigned src, unsigned op2) { \
