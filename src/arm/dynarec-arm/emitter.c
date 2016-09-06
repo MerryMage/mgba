@@ -302,7 +302,7 @@ unsigned loadReg(struct ARMDynarecContext* ctx, unsigned emureg) {
 	if (emureg != 15) {
 		EMIT(ctx, LDRI, AL, sysreg, REG_ARMCore, emureg * sizeof(uint32_t));
 	} else {
-		EMIT_IMM(ctx, AL, sysreg, ctx->address + WORD_SIZE_THUMB * 2);
+		EMIT_IMM(ctx, AL, sysreg, ctx->address + WORD_SIZE_THUMB);
 	}
 	return sysreg;
 }
