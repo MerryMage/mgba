@@ -161,17 +161,17 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 
 			switch (info.mnemonic) {
 			default:
-				EMIT_L(code, STRI, AL, REG_GUEST_PC, 0, ARM_PC * sizeof(uint32_t));
-				EMIT_L(code, STRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
-				EMIT_L(code, STMIA, AL, 0, REGLIST_GUESTREGS | 0x3);
+				EMIT(&ctx, STRI, AL, REG_GUEST_PC, 0, ARM_PC * sizeof(uint32_t));
+				EMIT(&ctx, STRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
+				EMIT(&ctx, STMIA, AL, 0, REGLIST_GUESTREGS | 0x3);
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wtype-limits"
 				EMIT_IMM(&ctx, AL, 1, instruction);
 #pragma GCC diagnostic pop
 				EMIT(&ctx, BL, AL, ctx.code, _thumbTable[instruction >> 6]);
-				EMIT_L(code, LDRI, AL, REG_GUEST_PC, 0, ARM_PC * sizeof(uint32_t));
-				EMIT_L(code, LDRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
-				EMIT_L(code, LDMIA, AL, 0, REGLIST_GUESTREGS | 0x3);
+				EMIT(&ctx, LDRI, AL, REG_GUEST_PC, 0, ARM_PC * sizeof(uint32_t));
+				EMIT(&ctx, LDRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
+				EMIT(&ctx, LDMIA, AL, 0, REGLIST_GUESTREGS | 0x3);
 				break;
 			}
 			if (needsUpdateEvents(&info)) {
