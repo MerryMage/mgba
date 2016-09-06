@@ -84,7 +84,7 @@ static bool needsUpdatePC(struct ARMInstructionInfo* info) {
 	ctx.cycles += info.sInstructionCycles * cpu->memory.activeSeqCycles16; \
 	ctx.cycles += info.nInstructionCycles * cpu->memory.activeNonseqCycles16;
 
-#define RECOMPILE_ALU(MN, POSTFIX)
+#define RECOMPILE_ALU(MN) \
 	do { \
 		unsigned rd = loadReg(&ctx, info.op1.reg); \
 		switch (info.operandFormat & (ARM_OPERAND_2 | ARM_OPERAND_3 | ARM_OPERAND_4)) { \
@@ -128,7 +128,7 @@ static bool needsUpdatePC(struct ARMInstructionInfo* info) {
 		} \
 		scratchesNotInUse(&ctx); \
 		ADD_CYCLES \
-	} until(0)
+	} while (0)
 
 void ARMDynarecEmitPrelude(struct ARMCore* cpu) {
 	code_t* code = (code_t*) cpu->dynarec.buffer;
