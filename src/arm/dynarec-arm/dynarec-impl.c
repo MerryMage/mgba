@@ -122,6 +122,7 @@ void ARMDynarecEmitPrelude(struct ARMCore* cpu) {
 	EMIT_L(code, LDRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
 	EMIT_L(code, LDMIA, AL, 0, REGLIST_GUESTREGS);
 	EMIT_L(code, PUSH, AL, REGLIST_RETURN);
+	EMIT_L(code, MOV, AL, 15, 1);
 
 	// Common epilogue
 	EMIT_L(code, STRI, AL, REG_GUEST_PC, 0, ARM_PC * sizeof(uint32_t));
@@ -130,6 +131,7 @@ void ARMDynarecEmitPrelude(struct ARMCore* cpu) {
 	EMIT_L(code, POP, AL, 0x8DF0);
 
 	cpu->dynarec.buffer = code;
+	__clear_cache(cpu->dynarec.execute, code);
 }
 
 void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace) {
