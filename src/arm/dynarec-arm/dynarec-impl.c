@@ -86,6 +86,7 @@ static bool needsUpdatePC(struct ARMInstructionInfo* info) {
 
 #define RECOMPILE_ALU3(MN) \
 	do { \
+		assert(info.operandFormat & ARM_OPERAND_REGISTER_1); \
 		unsigned rd = loadReg(&ctx, info.op1.reg); \
 		switch (info.operandFormat & (ARM_OPERAND_2 | ARM_OPERAND_3 | ARM_OPERAND_4)) { \
 		case ARM_OPERAND_REGISTER_2 | ARM_OPERAND_REGISTER_3: { \
@@ -124,13 +125,15 @@ static bool needsUpdatePC(struct ARMInstructionInfo* info) {
 			abort(); \
 		} \
 		assert(info.operandFormat & ARM_OPERAND_AFFECTED_1); \
-		flushReg(&ctx, info.op1.reg, rdn); \
+		flushReg(&ctx, info.op1.reg, rd); \
 		scratchesNotInUse(&ctx); \
 		ADD_CYCLES \
 	} while (0)
 
 #define RECOMPILE_ALU2(MN) \
+	goto interpret; \
 	do { \
+		assert(info.operandFormat & ARM_OPERAND_REGISTER_1); \
 		unsigned rd = loadReg(&ctx, info.op1.reg); \
 		switch (info.operandFormat & (ARM_OPERAND_2 | ARM_OPERAND_3 | ARM_OPERAND_4)) { \
 		case ARM_OPERAND_REGISTER_2: { \
@@ -152,24 +155,25 @@ static bool needsUpdatePC(struct ARMInstructionInfo* info) {
 			abort(); \
 		} \
 		assert(info.operandFormat & ARM_OPERAND_AFFECTED_1); \
-		flushReg(&ctx, info.op1.reg, rdn); \
+		flushReg(&ctx, info.op1.reg, rd); \
 		scratchesNotInUse(&ctx); \
 		ADD_CYCLES \
 	} while (0)
 
 #define RECOMPILE_ALU1(MN) \
 	do { \
+		assert(info.operandFormat & ARM_OPERAND_REGISTER_1); \
 		unsigned rm = loadReg(&ctx, info.op1.reg); \
 		switch (info.operandFormat & (ARM_OPERAND_2 | ARM_OPERAND_3 | ARM_OPERAND_4)) { \
 		case ARM_OPERAND_REGISTER_2: { \
 			unsigned rn = loadReg(&ctx, info.op2.reg); \
-			assert(info.affectsCPSR) \
+			assert(info.affectsCPSR); \
 			EMIT(&ctx, MN, AL, rm, rn); \
 			break; \
 		} \
 		case ARM_OPERAND_IMMEDIATE_2: { \
-			assert(info.affectsCPSR) \
-			EMIT(&ctx, MN, AL, rm, info.op2.immediate); \
+			assert(info.affectsCPSR); \
+			EMIT(&ctx, MN##I, AL, rm, info.op2.immediate); \
 			break; \
 		} \
 		default: \
@@ -223,13 +227,12 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 			uint16_t instruction = cpu->memory.load16(cpu, ctx.address, 0);
 			ARMDecodeThumb(instruction, &info);
 			ctx.address += WORD_SIZE_THUMB;
-//			if (needsUpdatePC(&info)) {
+			if (needsUpdatePC(&info)) {
 				updatePC(&ctx, ctx.address + WORD_SIZE_THUMB);
-//			}
-//			if (needsUpdatePrefetch(&info)) {
+			}
+			if (needsUpdatePrefetch(&info)) {
 				flushPrefetch(&ctx, cpu->memory.load16(cpu, ctx.address, 0), cpu->memory.load16(cpu, ctx.address + WORD_SIZE_THUMB, 0));
-				flushCycles(&ctx);
-//			}
+			}
 
 			switch (info.mnemonic) {
 			case ARM_MN_ADC:
@@ -326,10 +329,10 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 				loadNZCV(&ctx);
 				break;
 			}
-//			if (needsUpdateEvents(&info)) {
-//				flushCycles(&ctx);
+			if (needsUpdateEvents(&info)) {
+				flushCycles(&ctx);
 				updateEvents(&ctx, cpu, ctx.address + WORD_SIZE_THUMB);
-//			}
+			}
 			if (info.branchType >= ARM_BRANCH || info.traps) {
 				break;
 			}
