@@ -77,6 +77,11 @@ static bool needsUpdatePC(struct ARMInstructionInfo* info) {
 	return false;
 }
 
+#define ADD_CYCLES \
+	ctx.cycles += 1 + info.iCycles; \
+	ctx.cycles += info.sInstructionCycles * cpu->memory.activeSeqCycles16; \
+	ctx.cycles += info.nInstructionCycles * cpu->memory.activeNonseqCycles16;
+
 #define RECOMPILE_ALU(MN) \
 	if (info.operandFormat & ARM_OPERAND_REGISTER_2) { \
 		loadReg(&ctx, info.op2.reg, rn); \
@@ -164,9 +169,27 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 //			}
 
 			switch (info.mnemonic) {
-            case ARM_MN_ADC:
-            case ARM_MN_ADD:
-            case ARM_MN_AND:
+            case ARM_MN_ADC: {
+	            assert(info.operandFormat == ARM_OPERAND_REGISTER_1 | ARM_OPERAND_AFFECTED_1 | ARM_OPERAND_REGISTER_2);
+	            unsigned rdn = loadReg(&ctx, info.op1);
+	            unsigned rm = loadReg(&ctx, info.op2);
+	            EMIT(&ctx, ADCS, AL, rdn, rdn, rm);
+	            flushReg(&ctx, info.op1, rdn);
+	            ADD_CYCLES
+	            break;
+            }
+            case ARM_MN_ADD: {
+	            goto default;
+            }
+            case ARM_MN_AND: {
+	            assert(info.operandFormat == ARM_OPERAND_REGISTER_1 | ARM_OPERAND_AFFECTED_1 | ARM_OPERAND_REGISTER_2);
+	            unsigned rdn = loadReg(&ctx, info.op1);
+	            unsigned rm = loadReg(&ctx, info.op2);
+	            EMIT(&ctx, ANDS, AL, rdn, rdn, rm);
+	            flushReg(&ctx, info.op1, rdn);
+	            ADD_CYCLES
+	            break;
+            }
             case ARM_MN_ASR:
             case ARM_MN_B:
             case ARM_MN_BIC:
@@ -192,17 +215,12 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
             case ARM_MN_RSB:
             case ARM_MN_RSC:
             case ARM_MN_SBC:
-            case ARM_MN_SMLAL:
-            case ARM_MN_SMULL:
             case ARM_MN_STM:
             case ARM_MN_STR:
             case ARM_MN_SUB:
             case ARM_MN_SWI:
-            case ARM_MN_SWP:
             case ARM_MN_TEQ:
             case ARM_MN_TST:
-            case ARM_MN_UMLAL:
-            case ARM_MN_UMULL:
             default:
                 flushNZCV(&ctx);
 //				EMIT(&ctx, STRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));

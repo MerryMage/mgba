@@ -54,6 +54,7 @@ struct ARMDynarecContext {
 
 uint32_t calculateAddrMode1(unsigned imm);
 
+uint32_t emitADCS(unsigned dst, unsigned src, unsigned op2);
 uint32_t emitADDI(unsigned dst, unsigned src, unsigned imm);
 uint32_t emitADDS(unsigned dst, unsigned src, unsigned op2);
 uint32_t emitADDSI(unsigned dst, unsigned src, unsigned imm);

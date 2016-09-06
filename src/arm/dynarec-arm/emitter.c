@@ -12,6 +12,7 @@
 
 #define OP_I     0x02000000
 #define OP_S     0x00100000
+#define OP_ADC   0x00A00000
 #define OP_ADD   0x00800000
 #define OP_AND   0x00000000
 #define OP_B     0x0A000000
@@ -48,6 +49,10 @@ uint32_t calculateAddrMode1(unsigned imm) {
 		}
 	}
 	abort();
+}
+
+uint32_t emitADCS(unsigned dst, unsigned src, unsigned op2) {
+	return OP_ADC | OP_S | (dst << 12) | (src << 16) | op2;
 }
 
 uint32_t emitADDI(unsigned dst, unsigned src, unsigned imm) {
