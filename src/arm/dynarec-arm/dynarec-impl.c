@@ -125,8 +125,8 @@ void ARMDynarecEmitPrelude(struct ARMCore* cpu) {
 
 	// Common prologue
 	EMIT_L(code, PUSH, AL, 0x4DF0);
-	EMIT_L(code, LDRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
 	EMIT_L(code, LDMIA, AL, 0, REGLIST_GUESTREGS);
+	EMIT_L(code, LDRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
 	EMIT_L(code, LDRI, AL, 2, REG_ARMCore, offsetof(struct ARMCore, cpsr));
 	EMIT_L(code, MSR, AL, true, false, 2);
 	EMIT_L(code, PUSH, AL, REGLIST_RETURN);
@@ -184,37 +184,53 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 			case ARM_MN_ADD: {
 				switch (info.operandFormat) {
 				case ARM_OPERAND_REGISTER_1 | ARM_OPERAND_AFFECTED_1 | ARM_OPERAND_REGISTER_2 | ARM_OPERAND_REGISTER_3: {
+					goto interpret;
 					unsigned rd = loadReg(&ctx, info.op1.reg);
 					unsigned rn = loadReg(&ctx, info.op2.reg);
 					unsigned rm = loadReg(&ctx, info.op3.reg);
-					EMIT(&ctx, ADDS, AL, rd, rn, rm);
+					if (info.affectsCPSR)
+						EMIT(&ctx, ADDS, AL, rd, rn, rm);
+					else
+						EMIT(&ctx, ADD, AL, rd, rn, rm);
 					flushReg(&ctx, info.op1.reg, rd);
 					break;
 				}
 				case ARM_OPERAND_REGISTER_1 | ARM_OPERAND_AFFECTED_1 | ARM_OPERAND_REGISTER_2 | ARM_OPERAND_IMMEDIATE_3: {
+					goto interpret;
 					unsigned rd = loadReg(&ctx, info.op1.reg);
 					unsigned rn = loadReg(&ctx, info.op2.reg);
-					uint32_t imm = loadReg(&ctx, info.op3.immediate);
-					EMIT(&ctx, ADDSI, AL, rd, rn, imm);
+					uint32_t imm = info.op3.immediate;
+					if (info.affectsCPSR)
+						EMIT(&ctx, ADDSI, AL, rd, rn, imm);
+					else
+						EMIT(&ctx, ADDI, AL, rd, rn, imm);
 					flushReg(&ctx, info.op1.reg, rd);
 					break;
 				}
 				case ARM_OPERAND_REGISTER_1 | ARM_OPERAND_AFFECTED_1 | ARM_OPERAND_REGISTER_2: {
+					goto interpret;
 					unsigned rdn = loadReg(&ctx, info.op1.reg);
 					unsigned rm = loadReg(&ctx, info.op2.reg);
-					EMIT(&ctx, ADDS, AL, rdn, rdn, rm);
+					if (info.affectsCPSR)
+						EMIT(&ctx, ADDS, AL, rdn, rdn, rm);
+					else
+						EMIT(&ctx, ADD, AL, rdn, rdn, rm);
 					flushReg(&ctx, info.op1.reg, rdn);
 					break;
 				}
 				case ARM_OPERAND_REGISTER_1 | ARM_OPERAND_AFFECTED_1 | ARM_OPERAND_IMMEDIATE_2: {
+					goto interpret;
 					unsigned rdn = loadReg(&ctx, info.op1.reg);
-					uint32_t imm = loadReg(&ctx, info.op2.immediate);
-					EMIT(&ctx, ADDSI, AL, rdn, rdn, imm);
+					uint32_t imm = info.op2.immediate;
+					if (info.affectsCPSR)
+						EMIT(&ctx, ADDSI, AL, rdn, rdn, imm);
+					else
+						EMIT(&ctx, ADDI, AL, rdn, rdn, imm);
 					flushReg(&ctx, info.op1.reg, rdn);
 					break;
 				}
 				default:
-					abort();
+					assert(!"inv.");
 				}
 				scratchesNotInUse(&ctx);
 				ADD_CYCLES
@@ -261,6 +277,7 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
             case ARM_MN_SWI:
             case ARM_MN_TEQ:
             case ARM_MN_TST:
+		interpret:
             default:
                 flushNZCV(&ctx);
 				EMIT(&ctx, STRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
@@ -272,12 +289,13 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 #pragma GCC diagnostic pop
 				EMIT(&ctx, BL, AL, ctx.code, _thumbTable[instruction >> 6]);
 				EMIT(&ctx, POP, AL, REGLIST_SAVE);
-				EMIT(&ctx, LDRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
 				EMIT(&ctx, LDMIA, AL, 0, REGLIST_GUESTREGS);
+				EMIT(&ctx, LDRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
                 loadNZCV(&ctx);
 				break;
 			}
 //			if (needsUpdateEvents(&info)) {
+//				flushCycles(&ctx);
 				updateEvents(&ctx, cpu, ctx.address + WORD_SIZE_THUMB);
 //			}
 			if (info.branchType >= ARM_BRANCH || info.traps) {
@@ -286,6 +304,7 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 		}
 		flushPrefetch(&ctx, cpu->memory.load16(cpu, ctx.address, 0), cpu->memory.load16(cpu, ctx.address + WORD_SIZE_THUMB, 0));
 		flushCycles(&ctx);
+		flushNZCV(&ctx);
 		EMIT(&ctx, POP, AL, REGLIST_RETURN);
 	}
 	__clear_cache(trace->entry, ctx.code);

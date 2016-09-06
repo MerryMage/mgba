@@ -19,7 +19,7 @@
 #define REG_GUEST_R5 10
 #define REG_GUEST_R6 11
 #define REG_GUEST_R7 12
-#define REG_GUEST_SP 14
+#define REG_GUEST_SP 3
 #define REGLIST_SAVE 0x500F
 #define REGLIST_RETURN 0x8001
 #define REGLIST_GUESTREGS 0x1DF0 /*except SP*/
@@ -41,20 +41,25 @@ struct ARMDynarecContext {
 };
 
 #define EMIT_L(DEST, OPCODE, COND, ...) \
-	*DEST = emit ## OPCODE (__VA_ARGS__) | COND_ ## COND; \
-	++DEST;
+        do { \
+		*DEST = emit ## OPCODE (__VA_ARGS__) | COND_ ## COND; \
+		++DEST; \
+	} while (0)
 
 #define EMIT(CTX, OPCODE, COND, ...) EMIT_L((CTX)->code, OPCODE, COND, __VA_ARGS__)
 
 #define EMIT_IMM(DEST, COND, REG, VALUE) \
-	EMIT(DEST, MOVW, COND, REG, VALUE); \
-	if (VALUE >= 0x10000) { \
-		EMIT(DEST, MOVT, COND, REG, (VALUE) >> 16); \
-	}
+	do { \
+		EMIT(DEST, MOVW, COND, REG, VALUE); \
+		if (VALUE >= 0x10000) { \
+			EMIT(DEST, MOVT, COND, REG, (VALUE) >> 16); \
+		} \
+	} while (0)
 
 uint32_t calculateAddrMode1(unsigned imm);
 
 uint32_t emitADCS(unsigned dst, unsigned src, unsigned op2);
+uint32_t emitADD(unsigned dst, unsigned src, unsigned op2);
 uint32_t emitADDI(unsigned dst, unsigned src, unsigned imm);
 uint32_t emitADDS(unsigned dst, unsigned src, unsigned op2);
 uint32_t emitADDSI(unsigned dst, unsigned src, unsigned imm);

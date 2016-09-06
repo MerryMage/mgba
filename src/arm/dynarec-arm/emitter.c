@@ -55,6 +55,10 @@ uint32_t emitADCS(unsigned dst, unsigned src, unsigned op2) {
 	return OP_ADC | OP_S | (dst << 12) | (src << 16) | op2;
 }
 
+uint32_t emitADD(unsigned dst, unsigned src, unsigned op2) {
+	return OP_ADD | (dst << 12) | (src << 16) | op2;
+}
+
 uint32_t emitADDI(unsigned dst, unsigned src, unsigned imm) {
 	return OP_ADD | OP_I | calculateAddrMode1(imm) | (dst << 12) | (src << 16);
 }
@@ -227,9 +231,13 @@ void updateEvents(struct ARMDynarecContext* ctx, struct ARMCore* cpu, uint32_t e
 	EMIT(ctx, ADDI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(struct ARMCore, cycles));
 	EMIT(ctx, LDMIA, AL, REG_SCRATCH0, (1 << REG_SCRATCH0) | (1 << REG_SCRATCH1));
 	EMIT(ctx, CMP, AL, REG_SCRATCH1, REG_SCRATCH0); // cpu->nextEvent - cpu->cycles
+	EMIT(ctx, STRI, AL, REG_GUEST_SP, REG_ARMCore, ARM_SP * sizeof(uint32_t));
+	EMIT(ctx, STMIA, AL, REG_ARMCore, REGLIST_GUESTREGS);
 	EMIT(ctx, PUSH, AL, REGLIST_SAVE);
 	EMIT(ctx, BL, LE, ctx->code, cpu->irqh.processEvents);
 	EMIT(ctx, POP, AL, REGLIST_SAVE);
+	EMIT(ctx, LDMIA, AL, REG_ARMCore, REGLIST_GUESTREGS);
+	EMIT(ctx, LDRI, AL, REG_GUEST_SP, REG_ARMCore, ARM_SP * sizeof(uint32_t));
 	EMIT(ctx, LDRI, AL, REG_SCRATCH0, REG_ARMCore, ARM_PC * sizeof(uint32_t));
 	EMIT_IMM(ctx, AL, REG_SCRATCH1, expected_pc);
 	EMIT(ctx, CMP, AL, REG_SCRATCH0, REG_SCRATCH1);
@@ -263,10 +271,8 @@ unsigned loadReg(struct ARMDynarecContext* ctx, unsigned emureg) {
 		return REG_GUEST_R6;
 	case 7:
 		return REG_GUEST_R7;
-	case 13:
-		return REG_GUEST_SP;
-	case 15:
-		assert(!"loadReg(15) not allowed");
+//	case 13:
+//		return REG_GUEST_SP;
 	}
 
 	unsigned sysreg;
@@ -279,7 +285,11 @@ unsigned loadReg(struct ARMDynarecContext* ctx, unsigned emureg) {
 	} else {
 		assert(!"unreachable");
 	}
-	EMIT(ctx, LDRI, AL, sysreg, REG_ARMCore, emureg * sizeof(uint32_t));
+	if (emureg != 15) {
+		EMIT(ctx, LDRI, AL, sysreg, REG_ARMCore, emureg * sizeof(uint32_t));
+	} else {
+		EMIT_IMM(ctx, AL, sysreg, ctx->address + WORD_SIZE_THUMB * 2);
+	}
 	return sysreg;
 }
 
@@ -293,10 +303,8 @@ void flushReg(struct ARMDynarecContext* ctx, unsigned emureg, unsigned sysreg) {
 	case 5:
 	case 6:
 	case 7:
-	case 13:
+//	case 13:
 		return;
-	case 15:
-		assert(!"flushReg(15) not allowed");
 	}
 
 	switch (sysreg) {
