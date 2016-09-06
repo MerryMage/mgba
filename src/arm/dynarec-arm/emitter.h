@@ -61,26 +61,52 @@ struct ARMDynarecContext {
 	uint32_t emit##MN##I(unsigned dst, unsigned src, unsigned imm); \
 	uint32_t emit##MN##S(unsigned dst, unsigned src, unsigned op2); \
 	uint32_t emit##MN##SI(unsigned dst, unsigned src, unsigned imm); \
+	uint32_t emit##MN##_ASR(unsigned dst, unsigned src1, unsigned src2, unsigned src3); \
+	uint32_t emit##MN##_LSL(unsigned dst, unsigned src1, unsigned src2, unsigned src3); \
+	uint32_t emit##MN##_LSR(unsigned dst, unsigned src1, unsigned src2, unsigned src3); \
+	uint32_t emit##MN##_ROR(unsigned dst, unsigned src1, unsigned src2, unsigned src3); \
+	uint32_t emit##MN##S_ASR(unsigned dst, unsigned src1, unsigned src2, unsigned src3); \
+	uint32_t emit##MN##S_LSL(unsigned dst, unsigned src1, unsigned src2, unsigned src3); \
+	uint32_t emit##MN##S_LSR(unsigned dst, unsigned src1, unsigned src2, unsigned src3); \
+	uint32_t emit##MN##S_ROR(unsigned dst, unsigned src1, unsigned src2, unsigned src3); \
 	uint32_t emit##MN##_ASRI(unsigned dst, unsigned src1, unsigned src2, unsigned imm); \
 	uint32_t emit##MN##_LSLI(unsigned dst, unsigned src1, unsigned src2, unsigned imm); \
 	uint32_t emit##MN##_LSRI(unsigned dst, unsigned src1, unsigned src2, unsigned imm); \
-	uint32_t emit##MN##_RORI(unsigned dst, unsigned src1, unsigned src2, unsigned imm);
+	uint32_t emit##MN##_RORI(unsigned dst, unsigned src1, unsigned src2, unsigned imm); \
+	uint32_t emit##MN##S_ASRI(unsigned dst, unsigned src1, unsigned src2, unsigned imm); \
+	uint32_t emit##MN##S_LSLI(unsigned dst, unsigned src1, unsigned src2, unsigned imm); \
+	uint32_t emit##MN##S_LSRI(unsigned dst, unsigned src1, unsigned src2, unsigned imm); \
+	uint32_t emit##MN##S_RORI(unsigned dst, unsigned src1, unsigned src2, unsigned imm);
 
 #define DECLARE_ALU2_EMITTER(MN) \
 	uint32_t emit##MN(unsigned dst, unsigned op2); \
 	uint32_t emit##MN##I(unsigned dst, unsigned imm); \
 	uint32_t emit##MN##S(unsigned dst, unsigned op2); \
 	uint32_t emit##MN##SI(unsigned dst, unsigned imm); \
+	uint32_t emit##MN##_ASR(unsigned dst, unsigned src1, unsigned src2); \
+	uint32_t emit##MN##_LSL(unsigned dst, unsigned src1, unsigned src2); \
+	uint32_t emit##MN##_LSR(unsigned dst, unsigned src1, unsigned src2); \
+	uint32_t emit##MN##_ROR(unsigned dst, unsigned src1, unsigned src2); \
+	uint32_t emit##MN##S_ASR(unsigned dst, unsigned src1, unsigned src2); \
+	uint32_t emit##MN##S_LSL(unsigned dst, unsigned src1, unsigned src2); \
+	uint32_t emit##MN##S_LSR(unsigned dst, unsigned src1, unsigned src2); \
+	uint32_t emit##MN##S_ROR(unsigned dst, unsigned src1, unsigned src2); \
 	uint32_t emit##MN##_ASRI(unsigned dst, unsigned src, unsigned imm); \
 	uint32_t emit##MN##_LSLI(unsigned dst, unsigned src, unsigned imm); \
 	uint32_t emit##MN##_LSRI(unsigned dst, unsigned src, unsigned imm); \
-	uint32_t emit##MN##_RORI(unsigned dst, unsigned src, unsigned imm);
+	uint32_t emit##MN##_RORI(unsigned dst, unsigned src, unsigned imm); \
+	uint32_t emit##MN##S_ASRI(unsigned dst, unsigned src, unsigned imm); \
+	uint32_t emit##MN##S_LSLI(unsigned dst, unsigned src, unsigned imm); \
+	uint32_t emit##MN##S_LSRI(unsigned dst, unsigned src, unsigned imm); \
+	uint32_t emit##MN##S_RORI(unsigned dst, unsigned src, unsigned imm);
 
 #define DECLARE_ALU1_EMITTER(MN) \
 	uint32_t emit##MN(unsigned src, unsigned op2); \
 	uint32_t emit##MN##I(unsigned src, unsigned imm); \
-	uint32_t emit##MN##S(unsigned src, unsigned op2); \
-	uint32_t emit##MN##SI(unsigned src, unsigned imm); \
+	uint32_t emit##MN##_ASR(unsigned src1, unsigned src2, unsigned src3); \
+	uint32_t emit##MN##_LSL(unsigned src1, unsigned src2, unsigned src3); \
+	uint32_t emit##MN##_LSR(unsigned src1, unsigned src2, unsigned src3); \
+	uint32_t emit##MN##_ROR(unsigned src1, unsigned src2, unsigned src3); \
 	uint32_t emit##MN##_ASRI(unsigned src1, unsigned src2, unsigned imm); \
 	uint32_t emit##MN##_LSLI(unsigned src1, unsigned src2, unsigned imm); \
 	uint32_t emit##MN##_LSRI(unsigned src1, unsigned src2, unsigned imm); \

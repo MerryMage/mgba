@@ -12,10 +12,10 @@
 
 #define OP_I       0x02000000
 #define OP_S       0x00100000
-#define ADDR1_ASRI 0x00000040
-#define ADDR1_LSLI 0x00000000
-#define ADDR1_LSRI 0x00000020
-#define ADDR1_RORI 0x00000060
+#define ADDR1_ASR  0x00000040
+#define ADDR1_LSL  0x00000000
+#define ADDR1_LSR  0x00000020
+#define ADDR1_ROR  0x00000060
 
 #define OP_ADC     0x00A00000
 #define OP_ADD     0x00800000
@@ -64,6 +64,12 @@ static uint32_t calculateAddrMode1(unsigned imm) {
 	abort();
 }
 
+#define SHIFT(MN, S, I, ARGS, BODY) \
+	uint32_t emit##MN##S##_ASR##I ARGS { return OP##MN | ADDR1_ASR | BODY; } \
+	uint32_t emit##MN##S##_LSL##I ARGS { return OP##MN | ADDR1_LSL | BODY; } \
+	uint32_t emit##MN##S##_LSR##I ARGS { return OP##MN | ADDR1_LSR | BODY; } \
+	uint32_t emit##MN##S##_ROR##I ARGS { return OP##MN | ADDR1_ROR | BODY; }
+
 #define DEFINE_ALU3_EMITTER(MN) \
 	uint32_t emit##MN(unsigned dst, unsigned src, unsigned op2) { \
 		return OP_##MN | (dst << 12) | (src << 16) | op2; \
@@ -77,18 +83,10 @@ static uint32_t calculateAddrMode1(unsigned imm) {
 	uint32_t emit##MN##SI(unsigned dst, unsigned src, unsigned imm) { \
 		return OP_##MN | OP_S | OP_I | calculateAddrMode1(imm) | (dst << 12) | (src << 16); \
 	} \
-	uint32_t emit##MN##_ASRI(unsigned dst, unsigned src1, unsigned src2, unsigned imm) { \
-		return OP_##MN | ADDR1_ASRI | (dst << 12) | (src1 << 16) | ((imm & 0x1F) << 7) | src2; \
-	} \
-	uint32_t emit##MN##_LSLI(unsigned dst, unsigned src1, unsigned src2, unsigned imm) { \
-		return OP_##MN | ADDR1_LSLI | (dst << 12) | (src1 << 16) | ((imm & 0x1F) << 7) | src2; \
-	} \
-	uint32_t emit##MN##_LSRI(unsigned dst, unsigned src1, unsigned src2, unsigned imm) { \
-		return OP_##MN | ADDR1_LSRI | (dst << 12) | (src1 << 16) | ((imm & 0x1F) << 7) | src2; \
-	} \
-	uint32_t emit##MN##_RORI(unsigned dst, unsigned src1, unsigned src2, unsigned imm) { \
-		return OP_##MN | ADDR1_RORI | (dst << 12) | (src1 << 16) | ((imm & 0x1F) << 7) | src2; \
-	}
+	SHIFT(MN,  ,  , (unsigned dst, unsigned src1, unsigned src2, unsigned src3), (       (dst << 12) | (src1 << 16) | (src3 << 8) | src2)) \
+	SHIFT(MN, S,  , (unsigned dst, unsigned src1, unsigned src2, unsigned src3), (OP_S | (dst << 12) | (src1 << 16) | (src3 << 8) | src2)) \
+	SHIFT(MN,  , I, (unsigned dst, unsigned src1, unsigned src2, unsigned imm), (       (dst << 12) | (src1 << 16) | ((imm & 0x1F) << 7) | src2)) \
+	SHIFT(MN, S, I, (unsigned dst, unsigned src1, unsigned src2, unsigned imm), (OP_S | (dst << 12) | (src1 << 16) | ((imm & 0x1F) << 7) | src2))
 
 #define DEFINE_ALU2_EMITTER(MN) \
 	uint32_t emit##MN(unsigned dst, unsigned op2) { \
@@ -103,18 +101,10 @@ static uint32_t calculateAddrMode1(unsigned imm) {
 	uint32_t emit##MN##SI(unsigned dst, unsigned imm) { \
 		return OP_##MN | OP_S | OP_I | calculateAddrMode1(imm) | (dst << 12); \
 	} \
-	uint32_t emit##MN##_ASRI(unsigned dst, unsigned src, unsigned imm) { \
-		return OP_##MN | ADDR1_ASRI | (dst << 12) | ((imm & 0x1F) << 7) | src; \
-	} \
-	uint32_t emit##MN##_LSLI(unsigned dst, unsigned src, unsigned imm) { \
-		return OP_##MN | ADDR1_LSLI | (dst << 12) | ((imm & 0x1F) << 7) | src; \
-	} \
-	uint32_t emit##MN##_LSRI(unsigned dst, unsigned src, unsigned imm) { \
-		return OP_##MN | ADDR1_LSRI | (dst << 12) | ((imm & 0x1F) << 7) | src; \
-	} \
-	uint32_t emit##MN##_RORI(unsigned dst, unsigned src, unsigned imm) { \
-		return OP_##MN | ADDR1_RORI | (dst << 12) | ((imm & 0x1F) << 7) | src; \
-	}
+	SHIFT(MN,  ,  , (unsigned dst, unsigned src1, unsigned src2), (       (dst << 12) | (src2 << 8) | src1)) \
+	SHIFT(MN, S,  , (unsigned dst, unsigned src1, unsigned src2), (OP_S | (dst << 12) | (src2 << 8) | src1)) \
+	SHIFT(MN,  , I, (unsigned dst, unsigned src1, unsigned imm), (       (dst << 12) | ((imm & 0x1F) << 7) | src1)) \
+	SHIFT(MN, S, I, (unsigned dst, unsigned src1, unsigned imm), (OP_S | (dst << 12) | ((imm & 0x1F) << 7) | src1))
 
 #define DEFINE_ALU1_EMITTER(MN) \
 	uint32_t emit##MN(unsigned src, unsigned op2) { \
@@ -123,18 +113,8 @@ static uint32_t calculateAddrMode1(unsigned imm) {
 	uint32_t emit##MN##I(unsigned src, unsigned imm) { \
 		return OP_##MN | OP_I | calculateAddrMode1(imm) | (src << 16); \
 	} \
-	uint32_t emit##MN##_ASRI(unsigned src1, unsigned src2, unsigned imm) { \
-		return OP_##MN | ADDR1_ASRI | (src1 << 16) | ((imm & 0x1F) << 7) | src2; \
-	} \
-	uint32_t emit##MN##_LSLI(unsigned src1, unsigned src2, unsigned imm) { \
-		return OP_##MN | ADDR1_LSLI | (src1 << 16) | ((imm & 0x1F) << 7) | src2; \
-	} \
-	uint32_t emit##MN##_LSRI(unsigned src1, unsigned src2, unsigned imm) { \
-		return OP_##MN | ADDR1_LSRI | (src1 << 16) | ((imm & 0x1F) << 7) | src2; \
-	} \
-	uint32_t emit##MN##_RORI(unsigned src1, unsigned src2, unsigned imm) { \
-		return OP_##MN | ADDR1_RORI | (src1 << 16) | ((imm & 0x1F) << 7) | src2; \
-	}
+	SHIFT(MN,  ,  , (unsigned src1, unsigned src2, unsigned src3), ((src1 << 16) | (src3 << 8) | src2)) \
+	SHIFT(MN,  , I, (unsigned src1, unsigned src2, unsigned imm), ((src1 << 16) | ((imm & 0x1F) << 7) | src2))
 
 DEFINE_ALU3_EMITTER(ADC)
 DEFINE_ALU3_EMITTER(ADD)
@@ -156,6 +136,7 @@ DEFINE_ALU1_EMITTER(TST)
 #undef DEFINE_ALU3_EMITTER
 #undef DEFINE_ALU2_EMITTER
 #undef DEFINE_ALU1_EMITTER
+#undef SHIFT
 
 uint32_t emitMOVT(unsigned dst, uint16_t value) {
 	return OP_MOVT | (dst << 12) | ((value & 0xF000) << 4) | (value & 0x0FFF);
