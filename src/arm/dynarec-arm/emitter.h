@@ -46,9 +46,15 @@ struct ARMDynarecContext {
 	code_t* code;
 	uint32_t gpr_15; //!< The value that would be in cpu->gpr[15] if this were the interpreter.
 	int32_t cycles;
+
 	bool scratch0_in_use;
 	bool scratch1_in_use;
 	bool scratch2_in_use;
+
+	bool gpr_15_flushed;
+
+	bool prefetch_flushed;
+	uint32_t prefetch[2];
 };
 
 #define EMIT_L(DEST, OPCODE, COND, ...) \
@@ -163,7 +169,6 @@ uint32_t emitMSR(bool nzcvq, bool g, unsigned src);
 
 void updatePC(struct ARMDynarecContext* ctx, uint32_t address);
 void updateEvents(struct ARMDynarecContext* ctx, struct ARMCore* cpu, uint32_t expected_pc);
-void flushPrefetch(struct ARMDynarecContext* ctx, uint32_t op0, uint32_t op1);
 unsigned loadReg(struct ARMDynarecContext* ctx, unsigned emureg);
 void flushReg(struct ARMDynarecContext* ctx, unsigned emureg, unsigned sysreg);
 void scratchesNotInUse(struct ARMDynarecContext* ctx);

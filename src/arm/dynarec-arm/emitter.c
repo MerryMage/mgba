@@ -228,14 +228,6 @@ void updateEvents(struct ARMDynarecContext* ctx, struct ARMCore* cpu, uint32_t e
 	EMIT(ctx, POP, LE, REGLIST_RETURN);
 }
 
-void flushPrefetch(struct ARMDynarecContext* ctx, uint32_t op0, uint32_t op1) {
-	assert(!ctx->scratch0_in_use);
-	EMIT_IMM(ctx, AL, REG_SCRATCH0, op0);
-	EMIT(ctx, STRI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(struct ARMCore, prefetch) + 0 * sizeof(uint32_t));
-	EMIT_IMM(ctx, AL, REG_SCRATCH0, op1);
-	EMIT(ctx, STRI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(struct ARMCore, prefetch) + 1 * sizeof(uint32_t));
-}
-
 unsigned loadReg(struct ARMDynarecContext* ctx, unsigned emureg) {
 	unsigned sysreg;
 	if (!ctx->scratch0_in_use) {
@@ -253,7 +245,7 @@ unsigned loadReg(struct ARMDynarecContext* ctx, unsigned emureg) {
 	if (emureg != 15) {
 		EMIT(ctx, LDRI, AL, sysreg, REG_ARMCore, emureg * sizeof(uint32_t));
 	} else {
-		EMIT_IMM(ctx, AL, sysreg, ctx->address + WORD_SIZE_THUMB);
+		EMIT_IMM(ctx, AL, sysreg, ctx->gpr_15);
 	}
 	return sysreg;
 }
