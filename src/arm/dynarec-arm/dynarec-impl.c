@@ -251,7 +251,8 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 	} else {
 		trace->entry = (void*) ctx.code;
 		__attribute__((aligned(64))) struct ARMInstructionInfo info;
-		while (true) {
+		bool stop_compilation = false;
+		while (!stop_compilation) {
 			uint16_t instruction = cpu->memory.load16(cpu, ctx.address, 0);
 			ARMDecodeThumb(instruction, &info);
 			ctx.address += WORD_SIZE_THUMB;
@@ -283,7 +284,8 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 			case ARM_MN_BX:
 				goto interpret;
 			case ARM_MN_CMN:
-				goto interpret;
+				RECOMPILE_ALU1(CMN);
+				break;
 			case ARM_MN_CMP:
 				RECOMPILE_ALU1(CMP);
 				break;
@@ -348,6 +350,7 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 				break;
 			interpret:
 			default:
+				flushCycles(&ctx);
 				flushNZCV(&ctx);
 				EMIT(&ctx, STRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
 				EMIT(&ctx, STMIA, AL, 0, REGLIST_GUESTREGS);
@@ -361,12 +364,14 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 				EMIT(&ctx, LDMIA, AL, 0, REGLIST_GUESTREGS);
 				EMIT(&ctx, LDRI, AL, REG_GUEST_SP, 0, ARM_SP * sizeof(uint32_t));
 				loadNZCV(&ctx);
+				stop_compilation = true;
 				break;
 			}
-//			if (needsUpdateEvents(&info)) {
+			if (needsUpdateEvents(&info)) {
 				flushCycles(&ctx);
 				updateEvents(&ctx, cpu, ctx.address + WORD_SIZE_THUMB);
-//			}
+				stop_compilation = true;
+			}
 			if (info.branchType >= ARM_BRANCH || info.traps) {
 				break;
 			}

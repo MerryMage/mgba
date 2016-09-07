@@ -226,7 +226,7 @@ void updateEvents(struct ARMDynarecContext* ctx, struct ARMCore* cpu, uint32_t e
 	EMIT(ctx, ADDI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(struct ARMCore, cycles));
 	EMIT(ctx, LDMIA, AL, REG_SCRATCH0, (1 << REG_SCRATCH0) | (1 << REG_SCRATCH1));
 	EMIT(ctx, CMP, AL, REG_SCRATCH1, REG_SCRATCH0); // cpu->nextEvent - cpu->cycles
-	EMIT(ctx, POP, NE, REGLIST_RETURN);
+	EMIT(ctx, POP, LE, REGLIST_RETURN);
 	loadNZCV(ctx);
 }
 
