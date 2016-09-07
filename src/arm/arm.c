@@ -304,9 +304,9 @@ void ARMRunLoop(struct ARMCore* cpu) {
 	if (cpu->dynarec.currentEntry) {
 		cpu->dynarec.inDynarec = true;
 		while (cpu->dynarec.currentEntry) {
-			void* entry = cpu->dynarec.currentEntry;
-			cpu->dynarec.currentEntry = NULL;
-			ARMDynarecExecuteTrace(cpu, entry);
+			void* execution_token = cpu->dynarec.currentExecutionToken;
+			cpu->dynarec.currentExecutionToken = NULL;
+			ARMDynarecExecuteTrace(cpu, execution_token);
 		}
 		cpu->dynarec.inDynarec = false;
 		return;
