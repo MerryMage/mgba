@@ -301,12 +301,12 @@ void ARMRun(struct ARMCore* cpu) {
 }
 
 void ARMRunLoop(struct ARMCore* cpu) {
-	if (cpu->dynarec.currentEntry) {
+	if (cpu->dynarec.currentTrace) {
 		cpu->dynarec.inDynarec = true;
-		while (cpu->dynarec.currentEntry) {
-			void* execution_token = cpu->dynarec.currentExecutionToken;
-			cpu->dynarec.currentExecutionToken = NULL;
-			ARMDynarecExecuteTrace(cpu, execution_token);
+		while (cpu->dynarec.currentTrace) {
+			void* trace = cpu->dynarec.currentTrace;
+			cpu->dynarec.currentTrace = NULL;
+			ARMDynarecExecuteTrace(cpu, trace);
 		}
 		cpu->dynarec.inDynarec = false;
 		return;

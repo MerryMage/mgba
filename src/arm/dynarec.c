@@ -60,12 +60,12 @@ void ARMDynarecCountTrace(struct ARMCore* cpu, uint32_t address, enum ExecutionM
 		if (!cpu->dynarec.inDynarec) {
 			cpu->nextEvent = cpu->cycles;
 		}
-		cpu->dynarec.currentEntry = trace->entry;
+		cpu->dynarec.currentTrace = trace;
 	}
 }
 
-void ARMDynarecExecuteTrace(struct ARMCore* cpu, void* execution_token) {
-	cpu->dynarec.execute(cpu, entry);
+void ARMDynarecExecuteTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace) {
+	cpu->dynarec.execute(cpu, trace);
 	if (cpu->cycles >= cpu->nextEvent) {
 		cpu->irqh.processEvents(cpu);
 	}
