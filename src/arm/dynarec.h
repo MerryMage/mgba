@@ -24,6 +24,6 @@ void ARMDynarecDeinit(struct ARMCore* cpu);
 
 void ARMDynarecCountTrace(struct ARMCore* cpu, uint32_t address, enum ExecutionMode mode);
 void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace);
-void ARMDynarecExecuteTrace(struct ARMCore* cpu, void* entry);
+void ARMDynarecExecuteTrace(struct ARMCore* cpu, struct ARMDynarecTrace* execution_token);
 
 #endif

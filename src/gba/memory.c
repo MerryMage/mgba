@@ -245,7 +245,7 @@ static void GBASetActiveRegion(struct ARMCore* cpu, uint32_t address) {
 	gba->lastJump = address;
 	memory->lastPrefetchedPc = 0;
 	memory->lastPrefetchedLoads = 0;
-	cpu->dynarec.currentEntry = NULL;
+	cpu->dynarec.currentTrace = NULL;
 	if (newRegion == memory->activeRegion) {
 		if (cpu->executor == ARM_DYNAREC && newRegion >= REGION_CART0 && newRegion <= REGION_CART2_EX) {
 			ARMDynarecCountTrace(cpu, address,cpu->executionMode);
