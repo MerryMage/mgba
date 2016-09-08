@@ -214,13 +214,6 @@ uint32_t emitMSR(bool nzcvq, bool g, unsigned src) {
     return OP_MSR | (nzcvq << 19) | (g << 18) | src;
 }
 
-void updateEvents(struct ARMDynarecContext* ctx, struct ARMCore* cpu, uint32_t expected_pc) {
-	EMIT(ctx, ADDI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(struct ARMCore, cycles));
-	EMIT(ctx, LDMIA, AL, REG_SCRATCH0, (1 << REG_SCRATCH0) | (1 << REG_SCRATCH1));
-	EMIT(ctx, CMP, AL, REG_SCRATCH1, REG_SCRATCH0); // cpu->nextEvent - cpu->cycles
-	EMIT(ctx, POP, LE, REGLIST_RETURN);
-}
-
 void scratchesNotInUse(struct ARMDynarecContext* ctx) {
 	ctx->scratch_in_use[0] = false;
 	ctx->scratch_in_use[1] = false;

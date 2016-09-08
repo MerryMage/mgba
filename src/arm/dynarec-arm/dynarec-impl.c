@@ -21,6 +21,13 @@ static void lazySetPrefetch(struct ARMDynarecContext* ctx, uint32_t op0, uint32_
 	ctx->prefetch[1] = op1;
 }
 
+static void lazySetPrefetchForCurrentPC(struct ARMCore* cpu, struct ARMDynarecContext* ctx) {
+	uint16_t op0, op1;
+	LOAD_16(op0, (ctx->gpr_15 - 1 * WORD_SIZE_THUMB) & cpu->memory.activeMask, cpu->memory.activeRegion);
+	LOAD_16(op1, (ctx->gpr_15 - 0 * WORD_SIZE_THUMB) & cpu->memory.activeMask, cpu->memory.activeRegion);
+	lazySetPrefetch(ctx, op0, op1);
+}
+
 static void flushPrefetch(struct ARMDynarecContext* ctx) {
 	if (!ctx->prefetch_flushed) {
 		EMIT_IMM(ctx, AL, REG_SCRATCH0, ctx->prefetch[0]);
@@ -78,19 +85,6 @@ static void flushPC(struct ARMDynarecContext* ctx) {
 	}
 }
 
-static void interpretInstruction(struct ARMDynarecContext* ctx, uint16_t opcode) {
-	flushPrefetch(ctx);
-	flushCycles(ctx);
-	flushNZCV(ctx);
-	flushPC(ctx);
-	ThumbInstruction instruction = _thumbTable[opcode >> 6];
-	EMIT(ctx, PUSH, AL, REGLIST_SAVE);
-	EMIT_IMM(ctx, AL, 1, opcode);
-	EMIT(ctx, BL, AL, ctx->code, instruction);
-	EMIT(ctx, POP, AL, REGLIST_SAVE);
-	EMIT(ctx, POP, AL, REGLIST_RETURN);
-}
-
 static unsigned loadReg(struct ARMDynarecContext* ctx, unsigned guest_reg) {
 	assert(guest_reg <= 15);
 	for (unsigned i = 0; i < 3; i++) {
@@ -131,6 +125,48 @@ static void destroyAllReg(struct ARMDynarecContext* ctx) {
 		ctx->scratch_in_use[i] = false;
 		ctx->scratch_guest[i] = 99;
 	}
+}
+
+static void saveStateForCycleCheck(struct ARMDynarecContext* ctx) {
+	ctx->cycle_check_save_gpr_15 = ctx->gpr_15;
+	ctx->cycle_check_save_prefetch[0] = ctx->prefetch[0];
+	ctx->cycle_check_save_prefetch[1] = ctx->prefetch[1];
+}
+
+static void checkCycles(struct ARMDynarecContext* ctx) {
+	flushNZCV(ctx);
+	assert(!ctx->scratch_in_use[0]);
+	assert(!ctx->scratch_in_use[1]);
+	if (ctx->cycles) {
+		flushCycles(ctx);
+	} else {
+		EMIT(ctx, LDRI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(struct ARMCore, cycles));
+	}
+	EMIT(ctx, LDRI, AL, REG_SCRATCH1, REG_ARMCore, offsetof(struct ARMCore, nextEvent));
+	EMIT(ctx, CMP, AL, REG_SCRATCH1, REG_SCRATCH0); // cpu->nextEvent - cpu->cycles
+
+	EMIT_IMM(ctx, GE, REG_SCRATCH0, ctx->cycle_check_save_gpr_15);
+	EMIT(ctx, STRI, GE, REG_SCRATCH0, REG_ARMCore, 15 * sizeof(uint32_t));
+
+	EMIT_IMM(ctx, GE, REG_SCRATCH0, ctx->cycle_check_save_prefetch[0]);
+	EMIT(ctx, STRI, GE, REG_SCRATCH0, REG_ARMCore, offsetof(struct ARMCore, prefetch) + 0 * sizeof(uint32_t));
+	EMIT_IMM(ctx, GE, REG_SCRATCH0, ctx->cycle_check_save_prefetch[1]);
+	EMIT(ctx, STRI, GE, REG_SCRATCH0, REG_ARMCore, offsetof(struct ARMCore, prefetch) + 1 * sizeof(uint32_t));
+
+	EMIT(ctx, POP, GE, REGLIST_RETURN);
+}
+
+static void interpretInstruction(struct ARMDynarecContext* ctx, uint16_t opcode) {
+	checkCycles(ctx);
+	flushNZCV(ctx);
+	flushPC(ctx);
+	flushPrefetch(ctx);
+	ThumbInstruction instruction = _thumbTable[opcode >> 6];
+	EMIT(ctx, PUSH, AL, REGLIST_SAVE);
+	EMIT_IMM(ctx, AL, 1, opcode);
+	EMIT(ctx, BL, AL, ctx->code, instruction);
+	EMIT(ctx, POP, AL, REGLIST_SAVE);
+	EMIT(ctx, POP, AL, REGLIST_RETURN);
 }
 
 static void InterpretThumbInstructionNormally(struct ARMCore* cpu) {
@@ -192,40 +228,41 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 //	printf("%u\n", cpu->nextEvent - cpu->cycles);
 #endif
 
-	struct ARMDynarecContext ctx = {
-		.code = cpu->dynarec.buffer,
-		.gpr_15 = trace->start + 1 * WORD_SIZE_THUMB,
-		.cycles = 0,
-		.gpr_15_flushed = true,
-		.prefetch_flushed = true,
-		.nzcv_in_host_nzcv = false,
-	};
-	destroyAllReg(&ctx);
-
 	if (trace->mode == MODE_ARM) {
 		return;
 	} else {
+		struct ARMDynarecContext ctx = {
+			.code = cpu->dynarec.buffer,
+			.gpr_15 = trace->start + 3 * WORD_SIZE_THUMB,
+			.cycles = 0,
+			.gpr_15_flushed = true,
+			.prefetch_flushed = true,
+			.nzcv_in_host_nzcv = false,
+		};
+		destroyAllReg(&ctx);
+		lazySetPrefetchForCurrentPC(cpu, &ctx);
+		saveStateForCycleCheck(&ctx);
+
 		trace->entry = 1;
 		trace->entryPlus4 = (void*) ctx.code;
-		ctx.gpr_15 = trace->start + 3 * WORD_SIZE_THUMB;
 
 		bool continue_compilation = true;
 		while (continue_compilation) {
 			ctx.gpr_15_flushed = false;
 			ctx.gpr_15 += WORD_SIZE_THUMB;
 
-			uint16_t opcode, op0, op1;
-			LOAD_16(opcode, (ctx.gpr_15 - 2 * WORD_SIZE_THUMB) & cpu->memory.activeMask, cpu->memory.activeRegion);
-			LOAD_16(op0,    (ctx.gpr_15 - 1 * WORD_SIZE_THUMB) & cpu->memory.activeMask, cpu->memory.activeRegion);
-			LOAD_16(op1,    (ctx.gpr_15 - 0 * WORD_SIZE_THUMB) & cpu->memory.activeMask, cpu->memory.activeRegion);
-			lazySetPrefetch(&ctx, op0, op1);
+			uint16_t opcode = ctx.prefetch[0];
+			lazySetPrefetchForCurrentPC(cpu, &ctx);
 
 			continue_compilation = _thumbCompilerTable[opcode >> 6](cpu, &ctx, opcode);
+
+			saveStateForCycleCheck(&ctx);
 		}
+
+		//__clear_cache(trace->entry, ctx.code);
+		__clear_cache(trace->entryPlus4, ctx.code);
+		cpu->dynarec.buffer = ctx.code;
 	}
-	//__clear_cache(trace->entry, ctx.code);
-	__clear_cache(trace->entryPlus4, ctx.code);
-	cpu->dynarec.buffer = ctx.code;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

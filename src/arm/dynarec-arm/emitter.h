@@ -44,16 +44,18 @@ typedef uint32_t code_t;
 
 struct ARMDynarecContext {
 	code_t* code;
-	uint32_t gpr_15; //!< The value that would be in cpu->gpr[15] if this were the interpreter.
 	int32_t cycles;
 
 	bool scratch_in_use[3];
 	unsigned scratch_guest[3];
 
 	bool gpr_15_flushed;
+	uint32_t gpr_15; //!< The value that would be in cpu->gpr[15] if this were the interpreter.
+	uint32_t cycle_check_save_gpr_15;
 
 	bool prefetch_flushed;
 	uint32_t prefetch[2];
+	uint32_t cycle_check_save_prefetch[2];
 
 	bool nzcv_in_host_nzcv;
 };
@@ -168,7 +170,6 @@ uint32_t emitBL(void* base, void* target);
 uint32_t emitMRS(unsigned dst);
 uint32_t emitMSR(bool nzcvq, bool g, unsigned src);
 
-void updateEvents(struct ARMDynarecContext* ctx, struct ARMCore* cpu, uint32_t expected_pc);
 void scratchesNotInUse(struct ARMDynarecContext* ctx);
 
 #endif
