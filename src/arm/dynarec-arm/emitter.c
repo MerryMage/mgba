@@ -215,57 +215,14 @@ uint32_t emitMSR(bool nzcvq, bool g, unsigned src) {
 }
 
 void updateEvents(struct ARMDynarecContext* ctx, struct ARMCore* cpu, uint32_t expected_pc) {
-	assert(!ctx->scratch0_in_use && !ctx->scratch1_in_use);
 	EMIT(ctx, ADDI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(struct ARMCore, cycles));
 	EMIT(ctx, LDMIA, AL, REG_SCRATCH0, (1 << REG_SCRATCH0) | (1 << REG_SCRATCH1));
 	EMIT(ctx, CMP, AL, REG_SCRATCH1, REG_SCRATCH0); // cpu->nextEvent - cpu->cycles
 	EMIT(ctx, POP, LE, REGLIST_RETURN);
 }
 
-unsigned loadReg(struct ARMDynarecContext* ctx, unsigned emureg) {
-	unsigned sysreg;
-	if (!ctx->scratch0_in_use) {
-		ctx->scratch0_in_use = true;
-		sysreg = REG_SCRATCH0;
-	} else if (!ctx->scratch1_in_use) {
-		ctx->scratch1_in_use = true;
-		sysreg = REG_SCRATCH1;
-	} else if (!ctx->scratch2_in_use) {
-		ctx->scratch2_in_use = true;
-		sysreg = REG_SCRATCH1;
-	} else {
-		assert(!"unreachable");
-	}
-	if (emureg != 15) {
-		EMIT(ctx, LDRI, AL, sysreg, REG_ARMCore, emureg * sizeof(uint32_t));
-	} else {
-		EMIT_IMM(ctx, AL, sysreg, ctx->gpr_15);
-	}
-	return sysreg;
-}
-
-void flushReg(struct ARMDynarecContext* ctx, unsigned emureg, unsigned sysreg) {
-	switch (sysreg) {
-	case REG_SCRATCH0:
-		assert(ctx->scratch0_in_use);
-		ctx->scratch0_in_use = false;
-		break;
-	case REG_SCRATCH1:
-		assert(ctx->scratch1_in_use);
-		ctx->scratch1_in_use = false;
-		break;
-	case REG_SCRATCH2:
-		assert(ctx->scratch2_in_use);
-		ctx->scratch2_in_use = false;
-		break;
-	default:
-		assert(!"unreachable");
-	}
-	EMIT(ctx, STRI, AL, sysreg, REG_ARMCore, emureg * sizeof(uint32_t));
-}
-
 void scratchesNotInUse(struct ARMDynarecContext* ctx) {
-	ctx->scratch0_in_use = false;
-	ctx->scratch1_in_use = false;
-	ctx->scratch2_in_use = false;
+	ctx->scratch_in_use[0] = false;
+	ctx->scratch_in_use[1] = false;
+	ctx->scratch_in_use[2] = false;
 }

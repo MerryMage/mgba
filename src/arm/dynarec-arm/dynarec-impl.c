@@ -38,12 +38,12 @@ static void lazyAddCycles(struct ARMDynarecContext* ctx, int cycles) {
 void flushCycles(struct ARMDynarecContext* ctx) {
 	if (ctx->cycles == 0)
 		return;
-	assert(!ctx->scratch0_in_use);
+	assert(!ctx->scratch_in_use[0]);
 	EMIT(ctx, LDRI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(struct ARMCore, cycles));
 	if (ctx->cycles <= 255) {
 		EMIT(ctx, ADDI, AL, REG_SCRATCH0, REG_SCRATCH0, ctx->cycles);
 	} else {
-		assert(!ctx->scratch1_in_use);
+		assert(!ctx->scratch_in_use[1]);
 		EMIT_IMM(ctx, AL, REG_SCRATCH1, ctx->cycles);
 		EMIT(ctx, ADD, AL, REG_SCRATCH0, REG_SCRATCH0, REG_SCRATCH1);
 	}
@@ -53,7 +53,7 @@ void flushCycles(struct ARMDynarecContext* ctx) {
 
 void loadNZCV(struct ARMDynarecContext* ctx) {
 	if (!ctx->nzcv_in_host_nzcv) {
-		assert(!ctx->scratch0_in_use);
+		assert(!ctx->scratch_in_use[0]);
 		EMIT(ctx, LDRI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(struct ARMCore, cpsr));
 		EMIT(ctx, MSR, AL, true, false, REG_SCRATCH0);
 		ctx->nzcv_in_host_nzcv = true;
@@ -62,7 +62,7 @@ void loadNZCV(struct ARMDynarecContext* ctx) {
 
 void flushNZCV(struct ARMDynarecContext* ctx) {
 	if (ctx->nzcv_in_host_nzcv) {
-		assert(!ctx->scratch0_in_use);
+		assert(!ctx->scratch_in_use[0]);
 		EMIT(ctx, MRS, AL, REG_SCRATCH0);
 		EMIT(ctx, MOV_LSRI, AL, REG_SCRATCH0, REG_SCRATCH0, 24);
 		EMIT(ctx, STRBI, AL, REG_SCRATCH0, REG_ARMCore, (int)offsetof(struct ARMCore, cpsr) + 3);
@@ -89,6 +89,48 @@ static void interpretInstruction(struct ARMDynarecContext* ctx, uint16_t opcode)
 	EMIT(ctx, BL, AL, ctx->code, instruction);
 	EMIT(ctx, POP, AL, REGLIST_SAVE);
 	EMIT(ctx, POP, AL, REGLIST_RETURN);
+}
+
+static unsigned loadReg(struct ARMDynarecContext* ctx, unsigned guest_reg) {
+	assert(guest_reg <= 15);
+	for (unsigned i = 0; i < 3; i++) {
+		if (ctx->scratch_in_use[i] && ctx->scratch_guest[i] == guest_reg) {
+			unsigned sysreg = i + 1;
+			return sysreg;
+		}
+	}
+	for (unsigned i = 0; i < 3; i++) {
+		if (!ctx->scratch_in_use[i]) {
+			unsigned sysreg = i + 1;
+			ctx->scratch_in_use[i] = true;
+			ctx->scratch_guest[i] = guest_reg;
+			if (guest_reg != 15) {
+				EMIT(ctx, LDRI, AL, sysreg, REG_ARMCore, guest_reg * sizeof(uint32_t));
+			} else {
+				EMIT_IMM(ctx, AL, sysreg, ctx->gpr_15);
+			}
+			return sysreg;
+		}
+	}
+	abort();
+}
+
+static void flushReg(struct ARMDynarecContext* ctx, unsigned guest_reg, unsigned sysreg) {
+	assert(guest_reg <= 15);
+	assert(sysreg >= 1 && sysreg <= 3);
+	unsigned index = sysreg - 1;
+	assert(ctx->scratch_in_use[index]);
+	assert(ctx->scratch_guest[index] == guest_reg);
+	ctx->scratch_in_use[index] = false;
+	ctx->scratch_guest[index] = 99;
+	EMIT(ctx, STRI, AL, sysreg, REG_ARMCore, guest_reg * sizeof(uint32_t));
+}
+
+static void destroyAllReg(struct ARMDynarecContext* ctx) {
+	for (unsigned i = 0; i < 3; i++) {
+		ctx->scratch_in_use[i] = false;
+		ctx->scratch_guest[i] = 99;
+	}
 }
 
 static void InterpretThumbInstructionNormally(struct ARMCore* cpu) {
@@ -134,8 +176,8 @@ void ARMDynarecExecuteTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace) 
 
 void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace) {
 #ifndef NDEBUG
-	printf("%08X (%c)\n", trace->start, trace->mode == MODE_THUMB ? 'T' : 'A');
-	printf("%u\n", cpu->nextEvent - cpu->cycles);
+//	printf("%08X (%c)\n", trace->start, trace->mode == MODE_THUMB ? 'T' : 'A');
+//	printf("%u\n", cpu->nextEvent - cpu->cycles);
 #endif
 
 	struct ARMDynarecContext ctx = {
@@ -144,10 +186,9 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 		.cycles = 0,
 		.gpr_15_flushed = true,
 		.prefetch_flushed = true,
-		.scratch0_in_use = false,
-		.scratch1_in_use = false,
-		.scratch2_in_use = false,
+		.nzcv_in_host_nzcv = false,
 	};
+	destroyAllReg(&ctx);
 
 	if (trace->mode == MODE_ARM) {
 		return;
@@ -183,7 +224,7 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 #define THUMB_SUBTRACTION_S(M, N, D) \
 	ctx->nzcv_in_host_nzcv = true;
 
-#define THUMB_NEUTRAL_S(M, N, D) \
+#define THUMB_NEUTRAL_S \
 	assert(ctx->nzcv_in_host_nzcv == true);
 
 #define THUMB_ADDITION(D, M, N) \
@@ -223,16 +264,14 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 		BODY;)
 
 DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(LSL1,
-	interpretInstruction(ctx, opcode);
-	continue_compilation = false;
-	/*if (!immediate) {
-		cpu->gprs[rd] = cpu->gprs[rm];
-	} else {
-		cpu->cpsr.c = (cpu->gprs[rm] >> (32 - immediate)) & 1;
-		cpu->gprs[rd] = cpu->gprs[rm] << immediate;
-	}
-	THUMB_NEUTRAL_S( , , cpu->gprs[rd]);*/
-	)
+	printf("compiling lsl1");
+	loadNZCV(ctx);
+	unsigned reg_rd = loadReg(ctx, rd);
+	unsigned reg_rm = loadReg(ctx, rm);
+	EMIT(ctx, MOVS_LSLI, AL, reg_rd, reg_rm, immediate);
+	flushReg(ctx, rd, reg_rd);
+	destroyAllReg(ctx);
+	THUMB_NEUTRAL_S)
 
 DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(LSR1,
 	interpretInstruction(ctx, opcode);
