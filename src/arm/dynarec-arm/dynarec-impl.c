@@ -330,17 +330,17 @@ DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(ASR1,
 	destroyAllReg(ctx);
 	THUMB_NEUTRAL_S)
 
-DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(LDR1, interpretInstruction(ctx, opcode); continue_compilation = false;
+DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(LDR1, interpretInstruction(ctx, opcode); return false;
 	/*cpu->gprs[rd] = cpu->memory.load32(cpu, cpu->gprs[rm] + immediate * 4, &currentCycles); THUMB_LOAD_POST_BODY;*/)
-DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(LDRB1, interpretInstruction(ctx, opcode); continue_compilation = false;
+DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(LDRB1, interpretInstruction(ctx, opcode); return false;
 	/*cpu->gprs[rd] = cpu->memory.load8(cpu, cpu->gprs[rm] + immediate, &currentCycles); THUMB_LOAD_POST_BODY;*/)
-DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(LDRH1, interpretInstruction(ctx, opcode); continue_compilation = false;
+DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(LDRH1, interpretInstruction(ctx, opcode); return false;
 	/*cpu->gprs[rd] = cpu->memory.load16(cpu, cpu->gprs[rm] + immediate * 2, &currentCycles); THUMB_LOAD_POST_BODY;*/)
-DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(STR1, interpretInstruction(ctx, opcode); continue_compilation = false;
+DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(STR1, interpretInstruction(ctx, opcode); return false;
 	/*cpu->memory.store32(cpu, cpu->gprs[rm] + immediate * 4, cpu->gprs[rd], &currentCycles); THUMB_STORE_POST_BODY;*/)
-DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(STRB1, interpretInstruction(ctx, opcode); continue_compilation = false;
+DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(STRB1, interpretInstruction(ctx, opcode); return false;
 	/*cpu->memory.store8(cpu, cpu->gprs[rm] + immediate, cpu->gprs[rd], &currentCycles); THUMB_STORE_POST_BODY;*/)
-DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(STRH1, interpretInstruction(ctx, opcode); continue_compilation = false;
+DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(STRH1, interpretInstruction(ctx, opcode); return false;
 	/*cpu->memory.store16(cpu, cpu->gprs[rm] + immediate * 2, cpu->gprs[rd], &currentCycles); THUMB_STORE_POST_BODY;*/)
 
 #define DEFINE_DATA_FORM_1_INSTRUCTION_THUMB(NAME, BODY) \
@@ -434,107 +434,140 @@ DEFINE_DATA_FORM_3_INSTRUCTION_THUMB(SUB2,
 		int rn = (opcode >> 3) & 0x0007; \
 		BODY;)
 
-DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(AND, interpretInstruction(ctx, opcode); continue_compilation = false;
-	/*cpu->gprs[rd] = cpu->gprs[rd] & cpu->gprs[rn]; THUMB_NEUTRAL_S( , , cpu->gprs[rd])*/)
-DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(EOR, interpretInstruction(ctx, opcode); continue_compilation = false;
-	/*cpu->gprs[rd] = cpu->gprs[rd] ^ cpu->gprs[rn]; THUMB_NEUTRAL_S( , , cpu->gprs[rd])*/)
+DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(AND,
+	printf("and ");
+	loadNZCV(ctx);
+	unsigned reg_rd = loadReg(ctx, rd);
+	unsigned reg_rn = loadReg(ctx, rn);
+	EMIT(ctx, ANDS, AL, reg_rd, reg_rd, reg_rn);
+	flushReg(ctx, rd, reg_rd);
+	destroyAllReg(ctx);
+	THUMB_NEUTRAL_S)
+DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(EOR,
+	printf("eor ");
+	loadNZCV(ctx);
+	unsigned reg_rd = loadReg(ctx, rd);
+	unsigned reg_rn = loadReg(ctx, rn);
+	EMIT(ctx, EORS, AL, reg_rd, reg_rd, reg_rn);
+	flushReg(ctx, rd, reg_rd);
+	destroyAllReg(ctx);
+	THUMB_NEUTRAL_S)
 DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(LSL2,
-	interpretInstruction(ctx, opcode); continue_compilation = false;
-	/*int rs = cpu->gprs[rn] & 0xFF;
-	if (rs) {
-		if (rs < 32) {
-			cpu->cpsr.c = (cpu->gprs[rd] >> (32 - rs)) & 1;
-			cpu->gprs[rd] <<= rs;
-		} else {
-			if (rs > 32) {
-				cpu->cpsr.c = 0;
-			} else {
-				cpu->cpsr.c = cpu->gprs[rd] & 0x00000001;
-			}
-			cpu->gprs[rd] = 0;
-		}
-	}
-	THUMB_NEUTRAL_S( , , cpu->gprs[rd])*/)
+	printf("lsl2 ");
+	loadNZCV(ctx);
+	unsigned reg_rd = loadReg(ctx, rd);
+	unsigned reg_rn = loadReg(ctx, rn);
+	EMIT(ctx, MOVS_LSL, AL, reg_rd, reg_rd, reg_rn);
+	flushReg(ctx, rd, reg_rd);
+	destroyAllReg(ctx);
+	THUMB_NEUTRAL_S)
 
 DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(LSR2,
-	interpretInstruction(ctx, opcode); continue_compilation = false;
-	/*int rs = cpu->gprs[rn] & 0xFF;
-	if (rs) {
-		if (rs < 32) {
-			cpu->cpsr.c = (cpu->gprs[rd] >> (rs - 1)) & 1;
-			cpu->gprs[rd] = (uint32_t) cpu->gprs[rd] >> rs;
-		} else {
-			if (rs > 32) {
-				cpu->cpsr.c = 0;
-			} else {
-				cpu->cpsr.c = ARM_SIGN(cpu->gprs[rd]);
-			}
-			cpu->gprs[rd] = 0;
-		}
-	}
-	THUMB_NEUTRAL_S( , , cpu->gprs[rd])*/)
+	printf("lsl2 ");
+	loadNZCV(ctx);
+	unsigned reg_rd = loadReg(ctx, rd);
+	unsigned reg_rn = loadReg(ctx, rn);
+	EMIT(ctx, MOVS_LSR, AL, reg_rd, reg_rd, reg_rn);
+	flushReg(ctx, rd, reg_rd);
+	destroyAllReg(ctx);
+	THUMB_NEUTRAL_S)
 
 DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(ASR2,
-	interpretInstruction(ctx, opcode); continue_compilation = false;
-	/*int rs = cpu->gprs[rn] & 0xFF;
-	if (rs) {
-		if (rs < 32) {
-			cpu->cpsr.c = (cpu->gprs[rd] >> (rs - 1)) & 1;
-			cpu->gprs[rd] >>= rs;
-		} else {
-			cpu->cpsr.c = ARM_SIGN(cpu->gprs[rd]);
-			if (cpu->cpsr.c) {
-				cpu->gprs[rd] = 0xFFFFFFFF;
-			} else {
-				cpu->gprs[rd] = 0;
-			}
-		}
-	}
-	THUMB_NEUTRAL_S( , , cpu->gprs[rd])*/)
+	printf("asr2 ");
+	loadNZCV(ctx);
+	unsigned reg_rd = loadReg(ctx, rd);
+	unsigned reg_rn = loadReg(ctx, rn);
+	EMIT(ctx, MOVS_ASR, AL, reg_rd, reg_rd, reg_rn);
+	flushReg(ctx, rd, reg_rd);
+	destroyAllReg(ctx);
+	THUMB_NEUTRAL_S)
 
 DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(ADC,
-	interpretInstruction(ctx, opcode); continue_compilation = false;
-	/*int n = cpu->gprs[rn];
-	int d = cpu->gprs[rd];
-	cpu->gprs[rd] = d + n + cpu->cpsr.c;
-	THUMB_ADDITION_S(d, n, cpu->gprs[rd]);*/)
+	printf("adc ");
+	unsigned reg_rd = loadReg(ctx, rd);
+	unsigned reg_rn = loadReg(ctx, rn);
+	EMIT(ctx, ADCS, AL, reg_rd, reg_rd, reg_rn);
+	flushReg(ctx, rd, reg_rd);
+	destroyAllReg(ctx);
+	THUMB_ADDITION_S)
 
 DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(SBC,
-	interpretInstruction(ctx, opcode); continue_compilation = false;
-	/*int n = cpu->gprs[rn] + !cpu->cpsr.c;
-	int d = cpu->gprs[rd];
-	cpu->gprs[rd] = d - n;
-	THUMB_SUBTRACTION_S(d, n, cpu->gprs[rd]);*/)
+	printf("sbc ");
+	unsigned reg_rd = loadReg(ctx, rd);
+	unsigned reg_rn = loadReg(ctx, rn);
+	EMIT(ctx, SBCS, AL, reg_rd, reg_rd, reg_rn);
+	flushReg(ctx, rd, reg_rd);
+	destroyAllReg(ctx);
+	THUMB_SUBTRACTION_S)
 
 DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(ROR,
-	interpretInstruction(ctx, opcode); continue_compilation = false;
-	/*int rs = cpu->gprs[rn] & 0xFF;
-	if (rs) {
-		int r4 = rs & 0x1F;
-		if (r4 > 0) {
-			cpu->cpsr.c = (cpu->gprs[rd] >> (r4 - 1)) & 1;
-			cpu->gprs[rd] = ROR(cpu->gprs[rd], r4);
-		} else {
-			cpu->cpsr.c = ARM_SIGN(cpu->gprs[rd]);
-		}
-	}
-	THUMB_NEUTRAL_S( , , cpu->gprs[rd]);*/)
-DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(TST, interpretInstruction(ctx, opcode); continue_compilation = false;
-	/*int32_t aluOut = cpu->gprs[rd] & cpu->gprs[rn]; THUMB_NEUTRAL_S(cpu->gprs[rd], cpu->gprs[rn], aluOut)*/)
-DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(NEG, interpretInstruction(ctx, opcode); continue_compilation = false;
-	/*THUMB_SUBTRACTION(cpu->gprs[rd], 0, cpu->gprs[rn])*/)
-DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(CMP2, interpretInstruction(ctx, opcode); continue_compilation = false;
-	/*int32_t aluOut = cpu->gprs[rd] - cpu->gprs[rn]; THUMB_SUBTRACTION_S(cpu->gprs[rd], cpu->gprs[rn], aluOut)*/)
-DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(CMN, interpretInstruction(ctx, opcode); continue_compilation = false;
-	/*int32_t aluOut = cpu->gprs[rd] + cpu->gprs[rn]; THUMB_ADDITION_S(cpu->gprs[rd], cpu->gprs[rn], aluOut)*/)
-DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(ORR, interpretInstruction(ctx, opcode); continue_compilation = false;
-	/*cpu->gprs[rd] = cpu->gprs[rd] | cpu->gprs[rn]; THUMB_NEUTRAL_S( , , cpu->gprs[rd])*/)
-DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(MUL, interpretInstruction(ctx, opcode); continue_compilation = false;
+	printf("ror ");
+	loadNZCV(ctx);
+	unsigned reg_rd = loadReg(ctx, rd);
+	unsigned reg_rn = loadReg(ctx, rn);
+	EMIT(ctx, MOVS_ROR, AL, reg_rd, reg_rd, reg_rn);
+	flushReg(ctx, rd, reg_rd);
+	destroyAllReg(ctx);
+	THUMB_NEUTRAL_S)
+DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(TST,
+	printf("tst ");
+	loadNZCV(ctx);
+	unsigned reg_rd = loadReg(ctx, rd);
+	unsigned reg_rn = loadReg(ctx, rn);
+	EMIT(ctx, TST, AL, reg_rd, reg_rn);
+	destroyAllReg(ctx);
+	THUMB_NEUTRAL_S)
+DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(NEG,
+	printf("neg ");
+	unsigned reg_rd = loadReg(ctx, rd);
+	unsigned reg_rn = loadReg(ctx, rn);
+	EMIT(ctx, RSBSI, AL, reg_rd, reg_rn, 0);
+	flushReg(ctx, rd, reg_rd);
+	destroyAllReg(ctx);
+	THUMB_SUBTRACTION_S)
+DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(CMP2,
+	printf("cmp2 ");
+	unsigned reg_rd = loadReg(ctx, rd);
+	unsigned reg_rn = loadReg(ctx, rn);
+	EMIT(ctx, CMP, AL, reg_rd, reg_rn);
+	destroyAllReg(ctx);
+	THUMB_SUBTRACTION_S)
+DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(CMN,
+	printf("cmn ");
+	unsigned reg_rd = loadReg(ctx, rd);
+	unsigned reg_rn = loadReg(ctx, rn);
+	EMIT(ctx, CMN, AL, reg_rd, reg_rn);
+	destroyAllReg(ctx);
+	THUMB_SUBTRACTION_S)
+DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(ORR,
+	printf("orr ");
+	loadNZCV(ctx);
+	unsigned reg_rd = loadReg(ctx, rd);
+	unsigned reg_rn = loadReg(ctx, rn);
+	EMIT(ctx, ORRS, AL, reg_rd, reg_rd, reg_rn);
+	flushReg(ctx, rd, reg_rd);
+	destroyAllReg(ctx);
+	THUMB_NEUTRAL_S)
+DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(MUL, interpretInstruction(ctx, opcode); return false;
 	/*ARM_WAIT_MUL(cpu->gprs[rd]); cpu->gprs[rd] *= cpu->gprs[rn]; THUMB_NEUTRAL_S( , , cpu->gprs[rd]); currentCycles += cpu->memory.activeNonseqCycles16 - cpu->memory.activeSeqCycles16*/)
-DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(BIC, interpretInstruction(ctx, opcode); continue_compilation = false;
-	/*cpu->gprs[rd] = cpu->gprs[rd] & ~cpu->gprs[rn]; THUMB_NEUTRAL_S( , , cpu->gprs[rd])*/)
-DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(MVN, interpretInstruction(ctx, opcode); continue_compilation = false;
-	/*->gprs[rd] = ~cpu->gprs[rn]; THUMB_NEUTRAL_S( , , cpu->gprs[rd])*/)
+DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(BIC,
+	printf("bic ");
+	loadNZCV(ctx);
+	unsigned reg_rd = loadReg(ctx, rd);
+	unsigned reg_rn = loadReg(ctx, rn);
+	EMIT(ctx, BICS, AL, reg_rd, reg_rd, reg_rn);
+	flushReg(ctx, rd, reg_rd);
+	destroyAllReg(ctx);
+	THUMB_NEUTRAL_S)
+DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(MVN,
+	printf("mvn ");
+	loadNZCV(ctx);
+	unsigned reg_rd = loadReg(ctx, rd);
+	unsigned reg_rn = loadReg(ctx, rn);
+	EMIT(ctx, MVNS, AL, reg_rd, reg_rn);
+	flushReg(ctx, rd, reg_rd);
+	destroyAllReg(ctx);
+	THUMB_NEUTRAL_S)
 
 #define DEFINE_INSTRUCTION_WITH_HIGH_EX_THUMB(NAME, H1, H2, BODY) \
 	DEFINE_INSTRUCTION_THUMB(NAME, \
@@ -549,16 +582,16 @@ DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(MVN, interpretInstruction(ctx, opcode); con
 	DEFINE_INSTRUCTION_WITH_HIGH_EX_THUMB(NAME ## 11, 8, 8, BODY)
 
 DEFINE_INSTRUCTION_WITH_HIGH_THUMB(ADD4,
-	interpretInstruction(ctx, opcode); continue_compilation = false;
+	interpretInstruction(ctx, opcode); return false;
 	/*cpu->gprs[rd] += cpu->gprs[rm];
 	if (rd == ARM_PC) {
 		THUMB_WRITE_PC;
 	}*/)
 
-DEFINE_INSTRUCTION_WITH_HIGH_THUMB(CMP3, interpretInstruction(ctx, opcode); continue_compilation = false;
+DEFINE_INSTRUCTION_WITH_HIGH_THUMB(CMP3, interpretInstruction(ctx, opcode); return false;
 	/*int32_t aluOut = cpu->gprs[rd] - cpu->gprs[rm]; THUMB_SUBTRACTION_S(cpu->gprs[rd], cpu->gprs[rm], aluOut)*/)
 DEFINE_INSTRUCTION_WITH_HIGH_THUMB(MOV3,
-	interpretInstruction(ctx, opcode); continue_compilation = false;
+	interpretInstruction(ctx, opcode); return false;
 	/*cpu->gprs[rd] = cpu->gprs[rm];
 	if (rd == ARM_PC) {
 		THUMB_WRITE_PC;
@@ -570,16 +603,16 @@ DEFINE_INSTRUCTION_WITH_HIGH_THUMB(MOV3,
 		int immediate = (opcode & 0x00FF) << 2; \
 		BODY;)
 
-DEFINE_IMMEDIATE_WITH_REGISTER_THUMB(LDR3, interpretInstruction(ctx, opcode); continue_compilation = false;
+DEFINE_IMMEDIATE_WITH_REGISTER_THUMB(LDR3, interpretInstruction(ctx, opcode); return false;
 	/*cpu->gprs[rd] = cpu->memory.load32(cpu, (cpu->gprs[ARM_PC] & 0xFFFFFFFC) + immediate, &currentCycles); THUMB_LOAD_POST_BODY;*/)
-DEFINE_IMMEDIATE_WITH_REGISTER_THUMB(LDR4, interpretInstruction(ctx, opcode); continue_compilation = false;
+DEFINE_IMMEDIATE_WITH_REGISTER_THUMB(LDR4, interpretInstruction(ctx, opcode); return false;
 	/*cpu->gprs[rd] = cpu->memory.load32(cpu, cpu->gprs[ARM_SP] + immediate, &currentCycles); THUMB_LOAD_POST_BODY;*/)
-DEFINE_IMMEDIATE_WITH_REGISTER_THUMB(STR3, interpretInstruction(ctx, opcode); continue_compilation = false;
+DEFINE_IMMEDIATE_WITH_REGISTER_THUMB(STR3, interpretInstruction(ctx, opcode); return false;
 	/*cpu->memory.store32(cpu, cpu->gprs[ARM_SP] + immediate, cpu->gprs[rd], &currentCycles); THUMB_STORE_POST_BODY;*/)
 
-DEFINE_IMMEDIATE_WITH_REGISTER_THUMB(ADD5, interpretInstruction(ctx, opcode); continue_compilation = false;
+DEFINE_IMMEDIATE_WITH_REGISTER_THUMB(ADD5, interpretInstruction(ctx, opcode); return false;
 	/*cpu->gprs[rd] = (cpu->gprs[ARM_PC] & 0xFFFFFFFC) + immediate*/)
-DEFINE_IMMEDIATE_WITH_REGISTER_THUMB(ADD6, interpretInstruction(ctx, opcode); continue_compilation = false;
+DEFINE_IMMEDIATE_WITH_REGISTER_THUMB(ADD6, interpretInstruction(ctx, opcode); return false;
 	/*cpu->gprs[rd] = cpu->gprs[ARM_SP] + immediate*/)
 
 #define DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(NAME, BODY) \
@@ -589,21 +622,21 @@ DEFINE_IMMEDIATE_WITH_REGISTER_THUMB(ADD6, interpretInstruction(ctx, opcode); co
 		int rn = (opcode >> 3) & 0x0007; \
 		BODY;)
 
-DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(LDR2, interpretInstruction(ctx, opcode); continue_compilation = false;
+DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(LDR2, interpretInstruction(ctx, opcode); return false;
 	/*cpu->gprs[rd] = cpu->memory.load32(cpu, cpu->gprs[rn] + cpu->gprs[rm], &currentCycles); THUMB_LOAD_POST_BODY;*/)
-DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(LDRB2,interpretInstruction(ctx, opcode); continue_compilation = false;
+DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(LDRB2,interpretInstruction(ctx, opcode); return false;
 	/* cpu->gprs[rd] = cpu->memory.load8(cpu, cpu->gprs[rn] + cpu->gprs[rm], &currentCycles); THUMB_LOAD_POST_BODY;*/)
-DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(LDRH2,interpretInstruction(ctx, opcode); continue_compilation = false;
+DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(LDRH2,interpretInstruction(ctx, opcode); return false;
 	/* cpu->gprs[rd] = cpu->memory.load16(cpu, cpu->gprs[rn] + cpu->gprs[rm], &currentCycles); THUMB_LOAD_POST_BODY;*/)
-DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(LDRSB,interpretInstruction(ctx, opcode); continue_compilation = false;
+DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(LDRSB,interpretInstruction(ctx, opcode); return false;
 	/* cpu->gprs[rd] = ARM_SXT_8(cpu->memory.load8(cpu, cpu->gprs[rn] + cpu->gprs[rm], &currentCycles)); THUMB_LOAD_POST_BODY;*/)
-DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(LDRSH,interpretInstruction(ctx, opcode); continue_compilation = false;
+DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(LDRSH,interpretInstruction(ctx, opcode); return false;
 	/* rm = cpu->gprs[rn] + cpu->gprs[rm]; cpu->gprs[rd] = rm & 1 ? ARM_SXT_8(cpu->memory.load16(cpu, rm, &currentCycles)) : ARM_SXT_16(cpu->memory.load16(cpu, rm, &currentCycles)); THUMB_LOAD_POST_BODY;*/)
-DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(STR2, interpretInstruction(ctx, opcode); continue_compilation = false;
+DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(STR2, interpretInstruction(ctx, opcode); return false;
 	/*cpu->memory.store32(cpu, cpu->gprs[rn] + cpu->gprs[rm], cpu->gprs[rd], &currentCycles); THUMB_STORE_POST_BODY;*/)
-DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(STRB2,interpretInstruction(ctx, opcode); continue_compilation = false;
+DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(STRB2,interpretInstruction(ctx, opcode); return false;
 	/* cpu->memory.store8(cpu, cpu->gprs[rn] + cpu->gprs[rm], cpu->gprs[rd], &currentCycles); THUMB_STORE_POST_BODY;*/)
-DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(STRH2,interpretInstruction(ctx, opcode); continue_compilation = false;
+DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(STRH2,interpretInstruction(ctx, opcode); return false;
 	/* cpu->memory.store16(cpu, cpu->gprs[rn] + cpu->gprs[rm], cpu->gprs[rd], &currentCycles); THUMB_STORE_POST_BODY;*/)
 
 #define DEFINE_LOAD_STORE_MULTIPLE_THUMB(NAME, RN, LS, DIRECTION, PRE_BODY, WRITEBACK) \
@@ -621,7 +654,7 @@ DEFINE_LOAD_STORE_MULTIPLE_THUMB(LDMIA,
 	load,
 	IA,
 	,
-	interpretInstruction(ctx, opcode); continue_compilation = false;
+	interpretInstruction(ctx, opcode); return false;
 	/*THUMB_LOAD_POST_BODY;
 	if (!((1 << rn) & rs)) {
 		cpu->gprs[rn] = address;
@@ -632,13 +665,13 @@ DEFINE_LOAD_STORE_MULTIPLE_THUMB(STMIA,
 	store,
 	IA,
 	,
-	interpretInstruction(ctx, opcode); continue_compilation = false;
+	interpretInstruction(ctx, opcode); return false;
 	/*THUMB_STORE_POST_BODY;
 	cpu->gprs[rn] = address;*/)
 
 #define DEFINE_CONDITIONAL_BRANCH_THUMB(COND) \
 	DEFINE_INSTRUCTION_THUMB(B ## COND, \
-		interpretInstruction(ctx, opcode); continue_compilation = false; \
+		interpretInstruction(ctx, opcode); return false; \
 		/* if (ARM_COND_ ## COND) { */ \
 			/* int8_t immediate = opcode; */ \
 			/* cpu->gprs[ARM_PC] += (int32_t) immediate << 1; */ \
@@ -660,9 +693,9 @@ DEFINE_CONDITIONAL_BRANCH_THUMB(LT)
 DEFINE_CONDITIONAL_BRANCH_THUMB(GT)
 DEFINE_CONDITIONAL_BRANCH_THUMB(LE)
 
-DEFINE_INSTRUCTION_THUMB(ADD7, interpretInstruction(ctx, opcode); continue_compilation = false; \
+DEFINE_INSTRUCTION_THUMB(ADD7, interpretInstruction(ctx, opcode); return false; \
 		/*cpu->gprs[ARM_SP] += (opcode & 0x7F) << 2*/)
-DEFINE_INSTRUCTION_THUMB(SUB4, interpretInstruction(ctx, opcode); continue_compilation = false; \
+DEFINE_INSTRUCTION_THUMB(SUB4, interpretInstruction(ctx, opcode); return false; \
 		/*cpu->gprs[ARM_SP] -= (opcode & 0x7F) << 2*/)
 
 DEFINE_LOAD_STORE_MULTIPLE_THUMB(POP,
@@ -670,7 +703,7 @@ DEFINE_LOAD_STORE_MULTIPLE_THUMB(POP,
 	load,
 	IA,
 	,
-	interpretInstruction(ctx, opcode); continue_compilation = false; \
+	interpretInstruction(ctx, opcode); return false; \
 		/*THUMB_LOAD_POST_BODY;
 	cpu->gprs[ARM_SP] = address*/)
 
@@ -679,7 +712,7 @@ DEFINE_LOAD_STORE_MULTIPLE_THUMB(POPR,
 	load,
 	IA,
 	/*rs |= 1 << ARM_PC*/,
-	interpretInstruction(ctx, opcode); continue_compilation = false; \
+	interpretInstruction(ctx, opcode); return false; \
 		/*THUMB_LOAD_POST_BODY;
 	cpu->gprs[ARM_SP] = address;
 	THUMB_WRITE_PC;*/)
@@ -689,7 +722,7 @@ DEFINE_LOAD_STORE_MULTIPLE_THUMB(PUSH,
 	store,
 	DB,
 	,
-	interpretInstruction(ctx, opcode); continue_compilation = false; \
+	interpretInstruction(ctx, opcode); return false; \
 		/*THUMB_STORE_POST_BODY;
 	cpu->gprs[ARM_SP] = address*/)
 
@@ -698,27 +731,27 @@ DEFINE_LOAD_STORE_MULTIPLE_THUMB(PUSHR,
 	store,
 	DB,
 	/*rs |= 1 << ARM_LR*/,
-	interpretInstruction(ctx, opcode); continue_compilation = false; \
+	interpretInstruction(ctx, opcode); return false; \
 		/*THUMB_STORE_POST_BODY;
 	cpu->gprs[ARM_SP] = address*/)
 
-DEFINE_INSTRUCTION_THUMB(ILL, interpretInstruction(ctx, opcode); continue_compilation = false; \
+DEFINE_INSTRUCTION_THUMB(ILL, interpretInstruction(ctx, opcode); return false; \
 		/*ARM_ILL*/)
-DEFINE_INSTRUCTION_THUMB(BKPT, interpretInstruction(ctx, opcode); continue_compilation = false; \
+DEFINE_INSTRUCTION_THUMB(BKPT, interpretInstruction(ctx, opcode); return false; \
 		/*cpu->irqh.bkpt16(cpu, opcode & 0xFF);*/)
 DEFINE_INSTRUCTION_THUMB(B,
-	interpretInstruction(ctx, opcode); continue_compilation = false; \
+	interpretInstruction(ctx, opcode); return false; \
 		/*int16_t immediate = (opcode & 0x07FF) << 5;
 	cpu->gprs[ARM_PC] += (((int32_t) immediate) >> 4);
 	THUMB_WRITE_PC;*/)
 
 DEFINE_INSTRUCTION_THUMB(BL1,
-	interpretInstruction(ctx, opcode); continue_compilation = false; \
+	interpretInstruction(ctx, opcode); return false; \
 		/*int16_t immediate = (opcode & 0x07FF) << 5;
 	cpu->gprs[ARM_LR] = cpu->gprs[ARM_PC] + (((int32_t) immediate) << 7);*/)
 
 DEFINE_INSTRUCTION_THUMB(BL2,
-	interpretInstruction(ctx, opcode); continue_compilation = false; \
+	interpretInstruction(ctx, opcode); return false; \
 		/*uint16_t immediate = (opcode & 0x07FF) << 1;
 	uint32_t pc = cpu->gprs[ARM_PC];
 	cpu->gprs[ARM_PC] = cpu->gprs[ARM_LR] + immediate;
@@ -726,7 +759,7 @@ DEFINE_INSTRUCTION_THUMB(BL2,
 	THUMB_WRITE_PC;*/)
 
 DEFINE_INSTRUCTION_THUMB(BX,
-	interpretInstruction(ctx, opcode); continue_compilation = false; \
+	interpretInstruction(ctx, opcode); return false; \
 		/*int rm = (opcode >> 3) & 0xF;
 	_ARMSetMode(cpu, cpu->gprs[rm] & 0x00000001);
 	int misalign = 0;
@@ -740,7 +773,7 @@ DEFINE_INSTRUCTION_THUMB(BX,
 		ARM_WRITE_PC;
 	}*/)
 
-DEFINE_INSTRUCTION_THUMB(SWI, interpretInstruction(ctx, opcode); continue_compilation = false; \
+DEFINE_INSTRUCTION_THUMB(SWI, interpretInstruction(ctx, opcode); return false; \
 		/*cpu->irqh.swi16(cpu, opcode & 0xFF)*/)
 
 const ThumbCompiler _thumbCompilerTable[0x400] = {
