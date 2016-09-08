@@ -411,14 +411,34 @@ DEFINE_DATA_FORM_2_INSTRUCTION_THUMB(SUB1,
 		int immediate = opcode & 0x00FF; \
 		BODY;)
 
-DEFINE_DATA_FORM_3_INSTRUCTION_THUMB(ADD2, interpretInstruction(ctx, opcode); continue_compilation = false;
-	/*THUMB_ADDITION(cpu->gprs[rd], cpu->gprs[rd], immediate)*/)
-DEFINE_DATA_FORM_3_INSTRUCTION_THUMB(CMP1, interpretInstruction(ctx, opcode); continue_compilation = false;
-	/*int aluOut = cpu->gprs[rd] - immediate; THUMB_SUBTRACTION_S(cpu->gprs[rd], immediate, aluOut)*/)
-DEFINE_DATA_FORM_3_INSTRUCTION_THUMB(MOV1, interpretInstruction(ctx, opcode); continue_compilation = false;
-	/*cpu->gprs[rd] = immediate; THUMB_NEUTRAL_S(, , cpu->gprs[rd])*/)
-DEFINE_DATA_FORM_3_INSTRUCTION_THUMB(SUB2, interpretInstruction(ctx, opcode); continue_compilation = false;
-	/*THUMB_SUBTRACTION(cpu->gprs[rd], cpu->gprs[rd], immediate)*/)
+DEFINE_DATA_FORM_3_INSTRUCTION_THUMB(ADD2,
+	printf("add2 ");
+	unsigned reg_rd = loadReg(ctx, rd);
+	EMIT(ctx, ADDSI, AL, reg_rd, reg_rd, immediate);
+	flushReg(ctx, rd, reg_rd);
+	destroyAllReg(ctx);
+	THUMB_ADDITION_S)
+DEFINE_DATA_FORM_3_INSTRUCTION_THUMB(CMP1,
+	printf("cmp1 ");
+	unsigned reg_rd = loadReg(ctx, rd);
+	EMIT(ctx, CMPI, AL, reg_rd, immediate);
+	destroyAllReg(ctx);
+	THUMB_SUBTRACTION_S)
+DEFINE_DATA_FORM_3_INSTRUCTION_THUMB(MOV1,
+	printf("mov1 ");
+	loadNZCV(ctx);
+	unsigned reg_rd = loadReg(ctx, rd);
+	EMIT(ctx, MOVSI, AL, reg_rd, immediate);
+	flushReg(ctx, rd, reg_rd);
+	destroyAllReg(ctx);
+	THUMB_NEUTRAL_S)
+DEFINE_DATA_FORM_3_INSTRUCTION_THUMB(SUB2,
+	printf("sub2 ");
+	unsigned reg_rd = loadReg(ctx, rd);
+	EMIT(ctx, SUBSI, AL, reg_rd, reg_rd, immediate);
+	flushReg(ctx, rd, reg_rd);
+	destroyAllReg(ctx);
+	THUMB_SUBTRACTION_S)
 
 #define DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(NAME, BODY) \
 	DEFINE_INSTRUCTION_THUMB(NAME, \
