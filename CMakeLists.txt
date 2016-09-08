@@ -57,6 +57,8 @@ source_group("GB board" FILES ${GB_SRC})
 source_group("Utilities" FILES ${UTIL_SRC})
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
+include_directories(/opt/vc/include/)
+
 if(NOT CMAKE_BUILD_TYPE)
 	set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type (e.g. Release or Debug)" FORCE)
 endif()
