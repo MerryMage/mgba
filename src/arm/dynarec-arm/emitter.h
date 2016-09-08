@@ -52,6 +52,8 @@ enum ARMDynarecNZCVLocation {
 
 struct ARMDynarecContext {
 	code_t* code;
+
+	bool cycles_register_valid;
 	int32_t cycles;
 
 	bool scratch_in_use[3];

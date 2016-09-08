@@ -42,20 +42,16 @@ static void lazyAddCycles(struct ARMDynarecContext* ctx, int cycles) {
 	ctx->cycles += cycles;
 }
 
-void flushCycles(struct ARMDynarecContext* ctx) {
-	if (ctx->cycles == 0)
-		return;
-	assert(!ctx->scratch_in_use[0]);
-	EMIT(ctx, LDRI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(struct ARMCore, cycles));
-	if (ctx->cycles <= 255) {
-		EMIT(ctx, ADDI, AL, REG_SCRATCH0, REG_SCRATCH0, ctx->cycles);
-	} else {
+void flushCyclesRegister(struct ARMDynarecContext* ctx) {
+	assert(!ctx->cycles);
+	if (ctx->cycles_register_valid) {
 		assert(!ctx->scratch_in_use[1]);
-		EMIT_IMM(ctx, AL, REG_SCRATCH1, ctx->cycles);
-		EMIT(ctx, ADD, AL, REG_SCRATCH0, REG_SCRATCH0, REG_SCRATCH1);
+		EMIT(ctx, LDRI, AL, REG_SCRATCH1, REG_ARMCore, offsetof(struct ARMCore, nextEvent));
+		EMIT(ctx, SUB, AL, REG_SCRATCH1, REG_SCRATCH1, REG_CYCLES);
+		EMIT(ctx, SUBI, AL, REG_SCRATCH1, REG_SCRATCH1, 1); // MAGIC TRICK: CORRECT THE OFF BY ONE
+		EMIT(ctx, STRI, AL, REG_SCRATCH1, REG_ARMCore, offsetof(struct ARMCore, cycles));
+		ctx->cycles_register_valid = false;
 	}
-	EMIT(ctx, STRI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(struct ARMCore, cycles));
-	ctx->cycles = 0;
 }
 
 void loadNZCV(struct ARMDynarecContext* ctx) {
@@ -155,18 +151,24 @@ static void checkCycles(struct ARMCore* cpu, struct ARMDynarecContext* ctx) {
 		ctx->scratch_guest[2] = 42;
 	}
 
-	assert(!ctx->scratch_in_use[0]);
-	assert(!ctx->scratch_in_use[1]);
-	flushCycles(ctx);
-	EMIT(ctx, LDRI, AL, REG_SCRATCH1, REG_ARMCore, offsetof(struct ARMCore, nextEvent));
-	EMIT(ctx, SUBS, AL, REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH0); // cpu->nextEvent - cpu->cycles
-	EMIT_IMM(ctx, GE, REG_SCRATCH0, ctx->gpr_15);
+	if (!ctx->cycles_register_valid) {
+		assert(!ctx->scratch_in_use[0] && !ctx->scratch_in_use[1]);
+		EMIT(ctx, LDRI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(struct ARMCore, cycles));
+		EMIT(ctx, LDRI, AL, REG_SCRATCH1, REG_ARMCore, offsetof(struct ARMCore, nextEvent));
+		EMIT(ctx, SUB, AL, REG_CYCLES, REG_SCRATCH1, REG_SCRATCH0); // cpu->nextEvent - cpu->cycles
+		ctx->cycles++; // MAGIC TRICK: INTENTIONALLY BE OFF BY ONE
+		ctx->cycles_register_valid = true;
+	}
+	EMIT(ctx, SUBS, AL, REG_CYCLES, REG_CYCLES, ctx->cycles);
+	ctx->cycles = 0;
 
+	assert(!ctx->scratch_in_use[0]);
+	EMIT_IMM(ctx, MI, REG_SCRATCH0, ctx->gpr_15);
 	if (ctx->nzcv_location == CONTEXT_NZCV_IN_TMPREG) {
 		assert(ctx->scratch_in_use[2] && ctx->scratch_guest[2] == 42);
-		EMIT(ctx, B, GE, ctx->code, cpu->dynarec.saveNzcvAndCycleCheckHandler);
+		EMIT(ctx, B, MI, ctx->code, cpu->dynarec.saveNzcvAndCycleCheckHandler);
 	} else {
-		EMIT(ctx, B, GE, ctx->code, cpu->dynarec.cycleCheckHandler);
+		EMIT(ctx, B, MI, ctx->code, cpu->dynarec.cycleCheckHandler);
 	}
 }
 
@@ -175,6 +177,7 @@ static void interpretInstruction(struct ARMCore* cpu, struct ARMDynarecContext* 
 	flushNZCV(ctx);
 	flushPC(ctx);
 	flushPrefetch(ctx);
+	flushCyclesRegister(ctx);
 	ThumbInstruction instruction = _thumbTable[opcode >> 6];
 	EMIT(ctx, PUSH, AL, REGLIST_SAVE);
 	EMIT_IMM(ctx, AL, 1, opcode);
@@ -192,7 +195,8 @@ static void InterpretThumbInstructionNormally(struct ARMCore* cpu) {
 	instruction(cpu, opcode);
 }
 
-static void updatePrefetchToPcCallback(struct ARMCore* cpu) {
+static void cyclesExceededCallback(struct ARMCore* cpu, int32_t cycles_remaining) {
+	cpu->cycles = cpu->nextEvent - cycles_remaining - 1; // MAGIC TRICK: CORRECT THE OFF BY ONE
 	uint32_t pc = cpu->gprs[15];
 	uint16_t op0, op1;
 	LOAD_16(op0, (pc - 1 * WORD_SIZE_THUMB) & cpu->memory.activeMask, cpu->memory.activeRegion);
@@ -215,7 +219,8 @@ void ARMDynarecEmitPrelude(struct ARMCore* cpu) {
 	EMIT_L(code, STRBI, AL, REG_NZCV_TMP, REG_ARMCore, (int)offsetof(struct ARMCore, cpsr) + 3);
 	cpu->dynarec.cycleCheckHandler = (void*) code;
 	EMIT_L(code, STRI, AL, REG_SCRATCH0, REG_ARMCore, 15 * sizeof(uint32_t));
-	EMIT_L(code, BL, AL, code, &updatePrefetchToPcCallback);
+	EMIT_L(code, MOV, AL, 1, REG_CYCLES);
+	EMIT_L(code, BL, AL, code, &cyclesExceededCallback);
 	// fallthrough to epilogue
 
 	// Common epilogue
@@ -258,6 +263,7 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 		struct ARMDynarecContext ctx = {
 			.code = cpu->dynarec.buffer,
 			.gpr_15 = trace->start + 3 * WORD_SIZE_THUMB,
+			.cycles_register_valid = false,
 			.cycles = 0,
 			.gpr_15_flushed = true,
 			.prefetch_flushed = true,
