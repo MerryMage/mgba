@@ -208,6 +208,10 @@ void ARMDynarecExecuteTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace) 
 
 	// We've emptied the prefetcher. The first instruction to execute is trace->start + 2 * WORD_SIZE_THUMB
 	cpu->dynarec.execute(cpu, trace->entryPlus4);
+
+	if (cpu->cycles >= cpu->nextEvent) {
+		cpu->irqh.processEvents(cpu);
+	}
 }
 
 void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace) {
