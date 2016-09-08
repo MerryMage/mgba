@@ -121,12 +121,24 @@ void ARMDynarecExecuteTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace) 
 	assert((uint32_t)cpu->gprs[15] == trace->start + WORD_SIZE_THUMB);
 
 	// First, we're going to empty prefetch.
-	InterpretThumbInstructionNormally(cpu);
-	if (cpu->cycles >= cpu->nextEvent || (uint32_t)cpu->gprs[15] != trace->start + 2 * WORD_SIZE_THUMB)
+	if (cpu->cycles >= cpu->nextEvent) {
+		cpu->irqh.processEvents(cpu);
 		return;
+	}
 	InterpretThumbInstructionNormally(cpu);
-	if (cpu->cycles >= cpu->nextEvent || (uint32_t)cpu->gprs[15] != trace->start + 3 * WORD_SIZE_THUMB)
+	if (cpu->cycles >= cpu->nextEvent || (uint32_t)cpu->gprs[15] != trace->start + 2 * WORD_SIZE_THUMB) {
+		if (cpu->cycles >= cpu->nextEvent) {
+			cpu->irqh.processEvents(cpu);
+		}
 		return;
+	}
+	InterpretThumbInstructionNormally(cpu);
+	if (cpu->cycles >= cpu->nextEvent || (uint32_t)cpu->gprs[15] != trace->start + 3 * WORD_SIZE_THUMB) {
+		if (cpu->cycles >= cpu->nextEvent) {
+			cpu->irqh.processEvents(cpu);
+		}
+		return;
+	}
 
 	// We've emptied the prefetcher. The first instruction to execute is trace->start + 2 * WORD_SIZE_THUMB
 	cpu->dynarec.execute(cpu, trace->entryPlus4);
