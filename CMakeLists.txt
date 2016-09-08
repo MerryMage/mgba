@@ -130,6 +130,8 @@ mark_as_advanced(BUILD_LTO BUILD_PGO PGO_STAGE_2 PGO_DIR)
 set(PGO_PRE_FLAGS "-fprofile-generate=${PGO_DIR} -fprofile-arcs")
 set(PGO_POST_FLAGS "-fprofile-use=${PGO_DIR} -fbranch-probabilities")
 
+set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -funwind-tables")
+
 if(BUILD_PGO AND NOT PGO_STAGE_2)
 	set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} ${PGO_PRE_FLAGS}")
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${PGO_PRE_FLAGS}")
