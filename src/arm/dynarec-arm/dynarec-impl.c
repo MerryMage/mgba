@@ -729,10 +729,18 @@ DEFINE_IMMEDIATE_WITH_REGISTER_THUMB(LDR4, interpretInstruction(cpu, ctx, opcode
 DEFINE_IMMEDIATE_WITH_REGISTER_THUMB(STR3, interpretInstruction(cpu, ctx, opcode); return false;
 	/*cpu->memory.store32(cpu, cpu->gprs[ARM_SP] + immediate, cpu->gprs[rd], &currentCycles); THUMB_STORE_POST_BODY;*/)
 
-DEFINE_IMMEDIATE_WITH_REGISTER_THUMB(ADD5, interpretInstruction(cpu, ctx, opcode); return false;
-	/*cpu->gprs[rd] = (cpu->gprs[ARM_PC] & 0xFFFFFFFC) + immediate*/)
-DEFINE_IMMEDIATE_WITH_REGISTER_THUMB(ADD6, interpretInstruction(cpu, ctx, opcode); return false;
-	/*cpu->gprs[rd] = cpu->gprs[ARM_SP] + immediate*/)
+DEFINE_IMMEDIATE_WITH_REGISTER_THUMB(ADD5,
+	uint32_t imm_to_load = (ctx->gpr_15 & 0xFFFFFFFC) + immediate;
+	unsigned reg_rd = loadReg(ctx, rd);
+	EMIT_IMM(ctx, AL, reg_rd, imm_to_load);
+	flushReg(ctx, rd, reg_rd);
+	destroyAllReg(ctx);)
+DEFINE_IMMEDIATE_WITH_REGISTER_THUMB(ADD6,
+	unsigned reg_rd = loadReg(ctx, rd);
+	unsigned reg_sp = loadReg(ctx, 13);
+	EMIT(ctx, ADDI, AL, reg_rd, reg_sp, immediate);
+	flushReg(ctx, rd, reg_rd);
+	destroyAllReg(ctx);)
 
 #define DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(NAME, BODY) \
 	DEFINE_INSTRUCTION_THUMB(NAME, \
