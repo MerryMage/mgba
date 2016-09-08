@@ -78,7 +78,7 @@ void flushCyclesRegister(struct ARMDynarecContext* ctx) {
 void loadNZCV(struct ARMDynarecContext* ctx) {
 	if (ctx->nzcv_location != CONTEXT_NZCV_IN_HOST) {
 		if (ctx->nzcv_location == CONTEXT_NZCV_IN_TMPREG) {
-			assert(ctx->scratch_in_use[2] && ctx->scratch_guest[2] == 42);
+
 			EMIT(ctx, MSR, AL, true, false, REG_NZCV_TMP);
 		} else if (ctx->nzcv_location == CONTEXT_NZCV_IN_MEMORY) {
 			assert(!ctx->scratch_in_use[0]);
@@ -99,7 +99,7 @@ void flushNZCV(struct ARMDynarecContext* ctx) {
 			EMIT(ctx, MOV_LSRI, AL, REG_SCRATCH0, REG_SCRATCH0, 24);
 			EMIT(ctx, STRBI, AL, REG_SCRATCH0, REG_ARMCore, (int)offsetof(struct ARMCore, cpsr) + 3);
 		} else if (ctx->nzcv_location == CONTEXT_NZCV_IN_TMPREG) {
-			assert(ctx->scratch_in_use[2] && ctx->scratch_guest[2] == 42);
+
 			EMIT(ctx, MOV_LSRI, AL, REG_NZCV_TMP, REG_NZCV_TMP, 24);
 			EMIT(ctx, STRBI, AL, REG_NZCV_TMP, REG_ARMCore, (int)offsetof(struct ARMCore, cpsr) + 3);
 		} else {
@@ -143,6 +143,9 @@ static unsigned loadReg(struct ARMDynarecContext* ctx, unsigned guest_reg) {
 	for (unsigned i = 0; i < 3; i++) {
 		if (!ctx->scratch_in_use[i]) {
 			unsigned sysreg = i + 1;
+			if (sysreg == REG_NZCV_TMP) {
+				assert(ctx->nzcv_location != CONTEXT_NZCV_IN_TMPREG);
+			}
 			ctx->scratch_in_use[i] = true;
 			ctx->scratch_guest[i] = guest_reg;
 			if (guest_reg != 15) {
@@ -202,8 +205,6 @@ static void checkCycles(struct ARMCore* cpu, struct ARMDynarecContext* ctx) {
 		assert(!ctx->scratch_in_use[2]);
 		EMIT(ctx, MRS, AL, REG_NZCV_TMP);
 		ctx->nzcv_location = CONTEXT_NZCV_IN_TMPREG;
-		ctx->scratch_in_use[2] = true;
-		ctx->scratch_guest[2] = 42;
 	}
 
 	if (!ctx->cycles_register_valid) {
@@ -220,7 +221,6 @@ static void checkCycles(struct ARMCore* cpu, struct ARMDynarecContext* ctx) {
 	assert(!ctx->scratch_in_use[0]);
 	EMIT_IMM(ctx, MI, REG_SCRATCH0, ctx->gpr_15);
 	if (ctx->nzcv_location == CONTEXT_NZCV_IN_TMPREG) {
-		assert(ctx->scratch_in_use[2] && ctx->scratch_guest[2] == 42);
 		EMIT(ctx, B, MI, ctx->code, cpu->dynarec.saveNzcvAndCycleCheckHandler);
 	} else {
 		EMIT(ctx, B, MI, ctx->code, cpu->dynarec.cycleCheckHandler);
