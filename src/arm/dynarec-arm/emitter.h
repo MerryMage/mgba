@@ -47,9 +47,8 @@ struct ARMDynarecContext {
 	uint32_t gpr_15; //!< The value that would be in cpu->gpr[15] if this were the interpreter.
 	int32_t cycles;
 
-	bool scratch0_in_use;
-	bool scratch1_in_use;
-	bool scratch2_in_use;
+	bool scratch_in_use[3];
+	unsigned scratch_guest[3];
 
 	bool gpr_15_flushed;
 
@@ -170,8 +169,6 @@ uint32_t emitMRS(unsigned dst);
 uint32_t emitMSR(bool nzcvq, bool g, unsigned src);
 
 void updateEvents(struct ARMDynarecContext* ctx, struct ARMCore* cpu, uint32_t expected_pc);
-unsigned loadReg(struct ARMDynarecContext* ctx, unsigned emureg);
-void flushReg(struct ARMDynarecContext* ctx, unsigned emureg, unsigned sysreg);
 void scratchesNotInUse(struct ARMDynarecContext* ctx);
 
 #endif
