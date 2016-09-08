@@ -230,10 +230,10 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define THUMB_ADDITION_S(M, N, D) \
+#define THUMB_ADDITION_S \
 	ctx->nzcv_in_host_nzcv = true;
 
-#define THUMB_SUBTRACTION_S(M, N, D) \
+#define THUMB_SUBTRACTION_S \
 	ctx->nzcv_in_host_nzcv = true;
 
 #define THUMB_NEUTRAL_S \
@@ -325,10 +325,24 @@ DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(STRH1, interpretInstruction(ctx, opcode); c
 		int rn = (opcode >> 3) & 0x0007; \
 		BODY;)
 
-DEFINE_DATA_FORM_1_INSTRUCTION_THUMB(ADD3, interpretInstruction(ctx, opcode); continue_compilation = false;
-	/*THUMB_ADDITION(cpu->gprs[rd], cpu->gprs[rn], cpu->gprs[rm])*/)
-DEFINE_DATA_FORM_1_INSTRUCTION_THUMB(SUB3, interpretInstruction(ctx, opcode); continue_compilation = false;
-	/*THUMB_SUBTRACTION(cpu->gprs[rd], cpu->gprs[rn], cpu->gprs[rm])*/)
+DEFINE_DATA_FORM_1_INSTRUCTION_THUMB(ADD3,
+	printf("add3 ");
+	unsigned reg_rd = loadReg(ctx, rd);
+	unsigned reg_rn = loadReg(ctx, rn);
+	unsigned reg_rm = loadReg(ctx, rm);
+	EMIT(ctx, ADDS, AL, reg_rd, reg_rn, reg_rm);
+	flushReg(ctx, rd, reg_rd);
+	destroyAllReg(ctx);
+	THUMB_ADDITION_S)
+DEFINE_DATA_FORM_1_INSTRUCTION_THUMB(SUB3,
+	printf("sub3 ");
+	unsigned reg_rd = loadReg(ctx, rd);
+	unsigned reg_rn = loadReg(ctx, rn);
+	unsigned reg_rm = loadReg(ctx, rm);
+	EMIT(ctx, SUBS, AL, reg_rd, reg_rn, reg_rm);
+	flushReg(ctx, rd, reg_rd);
+	destroyAllReg(ctx);
+	THUMB_SUBTRACTION_S)
 
 #define DEFINE_DATA_FORM_2_INSTRUCTION_THUMB(NAME, BODY) \
 	DEFINE_INSTRUCTION_THUMB(NAME, \
@@ -337,10 +351,22 @@ DEFINE_DATA_FORM_1_INSTRUCTION_THUMB(SUB3, interpretInstruction(ctx, opcode); co
 		int rn = (opcode >> 3) & 0x0007; \
 		BODY;)
 
-DEFINE_DATA_FORM_2_INSTRUCTION_THUMB(ADD1, interpretInstruction(ctx, opcode); continue_compilation = false;
-	/*THUMB_ADDITION(cpu->gprs[rd], cpu->gprs[rn], immediate)*/)
-DEFINE_DATA_FORM_2_INSTRUCTION_THUMB(SUB1, interpretInstruction(ctx, opcode); continue_compilation = false;
-	/*THUMB_SUBTRACTION(cpu->gprs[rd], cpu->gprs[rn], immediate)*/)
+DEFINE_DATA_FORM_2_INSTRUCTION_THUMB(ADD1,
+	printf("add1 ");
+	unsigned reg_rd = loadReg(ctx, rd);
+	unsigned reg_rn = loadReg(ctx, rn);
+	EMIT(ctx, ADDSI, AL, reg_rd, reg_rn, immediate);
+	flushReg(ctx, rd, reg_rd);
+	destroyAllReg(ctx);
+	THUMB_ADDITION_S)
+DEFINE_DATA_FORM_2_INSTRUCTION_THUMB(SUB1,
+	printf("sub1 ");
+	unsigned reg_rd = loadReg(ctx, rd);
+	unsigned reg_rn = loadReg(ctx, rn);
+	EMIT(ctx, SUBSI, AL, reg_rd, reg_rn, immediate);
+	flushReg(ctx, rd, reg_rd);
+	destroyAllReg(ctx);
+	THUMB_SUBTRACTION_S)
 
 #define DEFINE_DATA_FORM_3_INSTRUCTION_THUMB(NAME, BODY) \
 	DEFINE_INSTRUCTION_THUMB(NAME, \
