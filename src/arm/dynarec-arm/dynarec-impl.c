@@ -264,7 +264,7 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 		BODY;)
 
 DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(LSL1,
-	printf("compiling lsl1");
+	printf("lsl1 ");
 	loadNZCV(ctx);
 	unsigned reg_rd = loadReg(ctx, rd);
 	unsigned reg_rm = loadReg(ctx, rm);
@@ -274,32 +274,24 @@ DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(LSL1,
 	THUMB_NEUTRAL_S)
 
 DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(LSR1,
-	interpretInstruction(ctx, opcode);
-	continue_compilation = false;
-	/*if (!immediate) {
-		cpu->cpsr.c = ARM_SIGN(cpu->gprs[rm]);
-		cpu->gprs[rd] = 0;
-	} else {
-		cpu->cpsr.c = (cpu->gprs[rm] >> (immediate - 1)) & 1;
-		cpu->gprs[rd] = ((uint32_t) cpu->gprs[rm]) >> immediate;
-	}
-	THUMB_NEUTRAL_S( , , cpu->gprs[rd]);*/)
+	printf("lsr1 ");
+	loadNZCV(ctx);
+	unsigned reg_rd = loadReg(ctx, rd);
+	unsigned reg_rm = loadReg(ctx, rm);
+	EMIT(ctx, MOVS_LSRI, AL, reg_rd, reg_rm, immediate);
+	flushReg(ctx, rd, reg_rd);
+	destroyAllReg(ctx);
+	THUMB_NEUTRAL_S)
 
 DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(ASR1,
-	interpretInstruction(ctx, opcode);
-	continue_compilation = false;
-	/*if (!immediate) {
-		cpu->cpsr.c = ARM_SIGN(cpu->gprs[rm]);
-		if (cpu->cpsr.c) {
-			cpu->gprs[rd] = 0xFFFFFFFF;
-		} else {
-			cpu->gprs[rd] = 0;
-		}
-	} else {
-		cpu->cpsr.c = (cpu->gprs[rm] >> (immediate - 1)) & 1;
-		cpu->gprs[rd] = cpu->gprs[rm] >> immediate;
-	}
-	THUMB_NEUTRAL_S( , , cpu->gprs[rd]);*/)
+	printf("asr1 ");
+	loadNZCV(ctx);
+	unsigned reg_rd = loadReg(ctx, rd);
+	unsigned reg_rm = loadReg(ctx, rm);
+	EMIT(ctx, MOVS_ASRI, AL, reg_rd, reg_rm, immediate);
+	flushReg(ctx, rd, reg_rd);
+	destroyAllReg(ctx);
+	THUMB_NEUTRAL_S)
 
 DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(LDR1, interpretInstruction(ctx, opcode); continue_compilation = false;
 	/*cpu->gprs[rd] = cpu->memory.load32(cpu, cpu->gprs[rm] + immediate * 4, &currentCycles); THUMB_LOAD_POST_BODY;*/)
