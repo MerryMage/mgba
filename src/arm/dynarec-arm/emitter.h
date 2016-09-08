@@ -12,6 +12,7 @@
 #define REG_SCRATCH0 1
 #define REG_SCRATCH1 2
 #define REG_SCRATCH2 3
+#define REG_NZCV_TMP 3
 // #define REG_GUEST_R0 4
 // #define REG_GUEST_R1 5
 // #define REG_GUEST_R2 6
@@ -43,6 +44,12 @@
 
 typedef uint32_t code_t;
 
+enum ARMDynarecNZCVLocation {
+	CONTEXT_NZCV_IN_HOST,
+	CONTEXT_NZCV_IN_TMPREG,
+	CONTEXT_NZCV_IN_MEMORY,
+};
+
 struct ARMDynarecContext {
 	code_t* code;
 	int32_t cycles;
@@ -56,7 +63,7 @@ struct ARMDynarecContext {
 	bool prefetch_flushed;
 	uint32_t prefetch[2];
 
-	bool nzcv_in_host_nzcv;
+	enum ARMDynarecNZCVLocation nzcv_location;
 };
 
 #define EMIT_L(DEST, OPCODE, COND, ...) \
