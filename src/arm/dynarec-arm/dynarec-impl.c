@@ -127,37 +127,33 @@ static void destroyAllReg(struct ARMDynarecContext* ctx) {
 	}
 }
 
-static void saveStateForCycleCheck(struct ARMDynarecContext* ctx) {
-	ctx->cycle_check_save_gpr_15 = ctx->gpr_15;
-	ctx->cycle_check_save_prefetch[0] = ctx->prefetch[0];
-	ctx->cycle_check_save_prefetch[1] = ctx->prefetch[1];
-}
+static void checkCycles(struct ARMCore* cpu, struct ARMDynarecContext* ctx) {
+	if (!ctx->cycles) {
+		return;
+	}
 
-static void checkCycles(struct ARMDynarecContext* ctx) {
-	flushNZCV(ctx);
+	if (ctx->nzcv_in_host_nzcv) {
+		assert(!ctx->scratch_in_use[2]);
+		EMIT(ctx, MRS, AL, REG_SCRATCH2);
+	}
+
 	assert(!ctx->scratch_in_use[0]);
 	assert(!ctx->scratch_in_use[1]);
-	if (ctx->cycles) {
-		flushCycles(ctx);
-	} else {
-		EMIT(ctx, LDRI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(struct ARMCore, cycles));
-	}
+	flushCycles(ctx);
 	EMIT(ctx, LDRI, AL, REG_SCRATCH1, REG_ARMCore, offsetof(struct ARMCore, nextEvent));
-	EMIT(ctx, CMP, AL, REG_SCRATCH1, REG_SCRATCH0); // cpu->nextEvent - cpu->cycles
+	EMIT(ctx, SUBS, AL, REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH0); // cpu->nextEvent - cpu->cycles
+	EMIT_IMM(ctx, GE, REG_SCRATCH0, ctx->gpr_15);
 
-	EMIT_IMM(ctx, GE, REG_SCRATCH0, ctx->cycle_check_save_gpr_15);
-	EMIT(ctx, STRI, GE, REG_SCRATCH0, REG_ARMCore, 15 * sizeof(uint32_t));
-
-	EMIT_IMM(ctx, GE, REG_SCRATCH0, ctx->cycle_check_save_prefetch[0]);
-	EMIT(ctx, STRI, GE, REG_SCRATCH0, REG_ARMCore, offsetof(struct ARMCore, prefetch) + 0 * sizeof(uint32_t));
-	EMIT_IMM(ctx, GE, REG_SCRATCH0, ctx->cycle_check_save_prefetch[1]);
-	EMIT(ctx, STRI, GE, REG_SCRATCH0, REG_ARMCore, offsetof(struct ARMCore, prefetch) + 1 * sizeof(uint32_t));
-
-	EMIT(ctx, POP, GE, REGLIST_RETURN);
+	if (ctx->nzcv_in_host_nzcv) {
+		EMIT(ctx, B, GE, ctx->code, cpu->dynarec.saveNzcvAndCycleCheckHandler);
+		EMIT(ctx, MSR, AL, true, false, REG_SCRATCH2);
+	} else {
+		EMIT(ctx, B, GE, ctx->code, cpu->dynarec.cycleCheckHandler);
+	}
 }
 
-static void interpretInstruction(struct ARMDynarecContext* ctx, uint16_t opcode) {
-	checkCycles(ctx);
+static void interpretInstruction(struct ARMCore* cpu, struct ARMDynarecContext* ctx, uint16_t opcode) {
+	assert(!ctx->cycles);
 	flushNZCV(ctx);
 	flushPC(ctx);
 	flushPrefetch(ctx);
@@ -166,7 +162,7 @@ static void interpretInstruction(struct ARMDynarecContext* ctx, uint16_t opcode)
 	EMIT_IMM(ctx, AL, 1, opcode);
 	EMIT(ctx, BL, AL, ctx->code, instruction);
 	EMIT(ctx, POP, AL, REGLIST_SAVE);
-	EMIT(ctx, POP, AL, REGLIST_RETURN);
+	EMIT(ctx, B, AL, ctx->code, cpu->dynarec.epilogue);
 }
 
 static void InterpretThumbInstructionNormally(struct ARMCore* cpu) {
@@ -178,16 +174,34 @@ static void InterpretThumbInstructionNormally(struct ARMCore* cpu) {
 	instruction(cpu, opcode);
 }
 
+static void updatePrefetchToPcCallback(struct ARMCore* cpu) {
+	uint32_t pc = cpu->gprs[15];
+	uint16_t op0, op1;
+	LOAD_16(op0, (pc - 1 * WORD_SIZE_THUMB) & cpu->memory.activeMask, cpu->memory.activeRegion);
+	LOAD_16(op1, (pc - 0 * WORD_SIZE_THUMB) & cpu->memory.activeMask, cpu->memory.activeRegion);
+	cpu->prefetch[0] = op0;
+	cpu->prefetch[1] = op1;
+}
+
 void ARMDynarecEmitPrelude(struct ARMCore* cpu) {
 	code_t* code = (code_t*) cpu->dynarec.buffer;
-	cpu->dynarec.execute = (void (*)(struct ARMCore*, void*)) code;
 
 	// Common prologue
+	cpu->dynarec.execute = (void (*)(struct ARMCore*, void*)) code;
 	EMIT_L(code, PUSH, AL, 0x4DF0);
-	EMIT_L(code, PUSH, AL, REGLIST_RETURN);
 	EMIT_L(code, MOV, AL, 15, 1);
 
+	// Cycle check handler
+	cpu->dynarec.saveNzcvAndCycleCheckHandler = (void*) code;
+	EMIT_L(code, MOV_LSRI, AL, REG_SCRATCH2, REG_SCRATCH2, 24);
+	EMIT_L(code, STRBI, AL, REG_SCRATCH2, REG_ARMCore, (int)offsetof(struct ARMCore, cpsr) + 3);
+	cpu->dynarec.cycleCheckHandler = (void*) code;
+	EMIT_L(code, STRI, AL, REG_SCRATCH0, REG_ARMCore, 15 * sizeof(uint32_t));
+	EMIT_L(code, BL, AL, code, &updatePrefetchToPcCallback);
+	// fallthrough to epilogue
+
 	// Common epilogue
+	cpu->dynarec.epilogue = (void*) code;
 	EMIT_L(code, POP, AL, 0x8DF0);
 
 	cpu->dynarec.buffer = code;
@@ -245,13 +259,12 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 		};
 		destroyAllReg(&ctx);
 		lazySetPrefetchForCurrentPC(cpu, &ctx);
-		saveStateForCycleCheck(&ctx);
 
 		trace->entry = 1;
 		trace->entryPlus4 = (void*) ctx.code;
 
 		bool continue_compilation = true;
-		while (continue_compilation) {
+		while (true) {
 			ctx.gpr_15_flushed = false;
 			ctx.gpr_15 += WORD_SIZE_THUMB;
 
@@ -260,8 +273,11 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 
 			continue_compilation = _thumbCompilerTable[opcode >> 6](cpu, &ctx, opcode);
 
-			saveStateForCycleCheck(&ctx);
-			checkCycles(&ctx);
+			if (!continue_compilation){
+				assert(!ctx.cycles);
+				break;
+			}
+			checkCycles(cpu, &ctx);
 		}
 
 		//__clear_cache(trace->entry, ctx.code);
@@ -347,17 +363,17 @@ DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(ASR1,
 	destroyAllReg(ctx);
 	THUMB_NEUTRAL_S)
 
-DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(LDR1, interpretInstruction(ctx, opcode); return false;
+DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(LDR1, interpretInstruction(cpu, ctx, opcode); return false;
 	/*cpu->gprs[rd] = cpu->memory.load32(cpu, cpu->gprs[rm] + immediate * 4, &currentCycles); THUMB_LOAD_POST_BODY;*/)
-DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(LDRB1, interpretInstruction(ctx, opcode); return false;
+DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(LDRB1, interpretInstruction(cpu, ctx, opcode); return false;
 	/*cpu->gprs[rd] = cpu->memory.load8(cpu, cpu->gprs[rm] + immediate, &currentCycles); THUMB_LOAD_POST_BODY;*/)
-DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(LDRH1, interpretInstruction(ctx, opcode); return false;
+DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(LDRH1, interpretInstruction(cpu, ctx, opcode); return false;
 	/*cpu->gprs[rd] = cpu->memory.load16(cpu, cpu->gprs[rm] + immediate * 2, &currentCycles); THUMB_LOAD_POST_BODY;*/)
-DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(STR1, interpretInstruction(ctx, opcode); return false;
+DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(STR1, interpretInstruction(cpu, ctx, opcode); return false;
 	/*cpu->memory.store32(cpu, cpu->gprs[rm] + immediate * 4, cpu->gprs[rd], &currentCycles); THUMB_STORE_POST_BODY;*/)
-DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(STRB1, interpretInstruction(ctx, opcode); return false;
+DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(STRB1, interpretInstruction(cpu, ctx, opcode); return false;
 	/*cpu->memory.store8(cpu, cpu->gprs[rm] + immediate, cpu->gprs[rd], &currentCycles); THUMB_STORE_POST_BODY;*/)
-DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(STRH1, interpretInstruction(ctx, opcode); return false;
+DEFINE_IMMEDIATE_5_INSTRUCTION_THUMB(STRH1, interpretInstruction(cpu, ctx, opcode); return false;
 	/*cpu->memory.store16(cpu, cpu->gprs[rm] + immediate * 2, cpu->gprs[rd], &currentCycles); THUMB_STORE_POST_BODY;*/)
 
 #define DEFINE_DATA_FORM_1_INSTRUCTION_THUMB(NAME, BODY) \
@@ -565,7 +581,7 @@ DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(ORR,
 	flushReg(ctx, rd, reg_rd);
 	destroyAllReg(ctx);
 	THUMB_NEUTRAL_S)
-DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(MUL, interpretInstruction(ctx, opcode); return false;
+DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(MUL, interpretInstruction(cpu, ctx, opcode); return false;
 	/*ARM_WAIT_MUL(cpu->gprs[rd]); cpu->gprs[rd] *= cpu->gprs[rn]; THUMB_NEUTRAL_S( , , cpu->gprs[rd]); currentCycles += cpu->memory.activeNonseqCycles16 - cpu->memory.activeSeqCycles16*/)
 DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(BIC,
 	printf("bic ");
@@ -599,16 +615,16 @@ DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(MVN,
 	DEFINE_INSTRUCTION_WITH_HIGH_EX_THUMB(NAME ## 11, 8, 8, BODY)
 
 DEFINE_INSTRUCTION_WITH_HIGH_THUMB(ADD4,
-	interpretInstruction(ctx, opcode); return false;
+	interpretInstruction(cpu, ctx, opcode); return false;
 	/*cpu->gprs[rd] += cpu->gprs[rm];
 	if (rd == ARM_PC) {
 		THUMB_WRITE_PC;
 	}*/)
 
-DEFINE_INSTRUCTION_WITH_HIGH_THUMB(CMP3, interpretInstruction(ctx, opcode); return false;
+DEFINE_INSTRUCTION_WITH_HIGH_THUMB(CMP3, interpretInstruction(cpu, ctx, opcode); return false;
 	/*int32_t aluOut = cpu->gprs[rd] - cpu->gprs[rm]; THUMB_SUBTRACTION_S(cpu->gprs[rd], cpu->gprs[rm], aluOut)*/)
 DEFINE_INSTRUCTION_WITH_HIGH_THUMB(MOV3,
-	interpretInstruction(ctx, opcode); return false;
+	interpretInstruction(cpu, ctx, opcode); return false;
 	/*cpu->gprs[rd] = cpu->gprs[rm];
 	if (rd == ARM_PC) {
 		THUMB_WRITE_PC;
@@ -620,16 +636,16 @@ DEFINE_INSTRUCTION_WITH_HIGH_THUMB(MOV3,
 		int immediate = (opcode & 0x00FF) << 2; \
 		BODY;)
 
-DEFINE_IMMEDIATE_WITH_REGISTER_THUMB(LDR3, interpretInstruction(ctx, opcode); return false;
+DEFINE_IMMEDIATE_WITH_REGISTER_THUMB(LDR3, interpretInstruction(cpu, ctx, opcode); return false;
 	/*cpu->gprs[rd] = cpu->memory.load32(cpu, (cpu->gprs[ARM_PC] & 0xFFFFFFFC) + immediate, &currentCycles); THUMB_LOAD_POST_BODY;*/)
-DEFINE_IMMEDIATE_WITH_REGISTER_THUMB(LDR4, interpretInstruction(ctx, opcode); return false;
+DEFINE_IMMEDIATE_WITH_REGISTER_THUMB(LDR4, interpretInstruction(cpu, ctx, opcode); return false;
 	/*cpu->gprs[rd] = cpu->memory.load32(cpu, cpu->gprs[ARM_SP] + immediate, &currentCycles); THUMB_LOAD_POST_BODY;*/)
-DEFINE_IMMEDIATE_WITH_REGISTER_THUMB(STR3, interpretInstruction(ctx, opcode); return false;
+DEFINE_IMMEDIATE_WITH_REGISTER_THUMB(STR3, interpretInstruction(cpu, ctx, opcode); return false;
 	/*cpu->memory.store32(cpu, cpu->gprs[ARM_SP] + immediate, cpu->gprs[rd], &currentCycles); THUMB_STORE_POST_BODY;*/)
 
-DEFINE_IMMEDIATE_WITH_REGISTER_THUMB(ADD5, interpretInstruction(ctx, opcode); return false;
+DEFINE_IMMEDIATE_WITH_REGISTER_THUMB(ADD5, interpretInstruction(cpu, ctx, opcode); return false;
 	/*cpu->gprs[rd] = (cpu->gprs[ARM_PC] & 0xFFFFFFFC) + immediate*/)
-DEFINE_IMMEDIATE_WITH_REGISTER_THUMB(ADD6, interpretInstruction(ctx, opcode); return false;
+DEFINE_IMMEDIATE_WITH_REGISTER_THUMB(ADD6, interpretInstruction(cpu, ctx, opcode); return false;
 	/*cpu->gprs[rd] = cpu->gprs[ARM_SP] + immediate*/)
 
 #define DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(NAME, BODY) \
@@ -639,21 +655,21 @@ DEFINE_IMMEDIATE_WITH_REGISTER_THUMB(ADD6, interpretInstruction(ctx, opcode); re
 		int rn = (opcode >> 3) & 0x0007; \
 		BODY;)
 
-DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(LDR2, interpretInstruction(ctx, opcode); return false;
+DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(LDR2, interpretInstruction(cpu, ctx, opcode); return false;
 	/*cpu->gprs[rd] = cpu->memory.load32(cpu, cpu->gprs[rn] + cpu->gprs[rm], &currentCycles); THUMB_LOAD_POST_BODY;*/)
-DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(LDRB2,interpretInstruction(ctx, opcode); return false;
+DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(LDRB2,interpretInstruction(cpu, ctx, opcode); return false;
 	/* cpu->gprs[rd] = cpu->memory.load8(cpu, cpu->gprs[rn] + cpu->gprs[rm], &currentCycles); THUMB_LOAD_POST_BODY;*/)
-DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(LDRH2,interpretInstruction(ctx, opcode); return false;
+DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(LDRH2,interpretInstruction(cpu, ctx, opcode); return false;
 	/* cpu->gprs[rd] = cpu->memory.load16(cpu, cpu->gprs[rn] + cpu->gprs[rm], &currentCycles); THUMB_LOAD_POST_BODY;*/)
-DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(LDRSB,interpretInstruction(ctx, opcode); return false;
+DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(LDRSB,interpretInstruction(cpu, ctx, opcode); return false;
 	/* cpu->gprs[rd] = ARM_SXT_8(cpu->memory.load8(cpu, cpu->gprs[rn] + cpu->gprs[rm], &currentCycles)); THUMB_LOAD_POST_BODY;*/)
-DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(LDRSH,interpretInstruction(ctx, opcode); return false;
+DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(LDRSH,interpretInstruction(cpu, ctx, opcode); return false;
 	/* rm = cpu->gprs[rn] + cpu->gprs[rm]; cpu->gprs[rd] = rm & 1 ? ARM_SXT_8(cpu->memory.load16(cpu, rm, &currentCycles)) : ARM_SXT_16(cpu->memory.load16(cpu, rm, &currentCycles)); THUMB_LOAD_POST_BODY;*/)
-DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(STR2, interpretInstruction(ctx, opcode); return false;
+DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(STR2, interpretInstruction(cpu, ctx, opcode); return false;
 	/*cpu->memory.store32(cpu, cpu->gprs[rn] + cpu->gprs[rm], cpu->gprs[rd], &currentCycles); THUMB_STORE_POST_BODY;*/)
-DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(STRB2,interpretInstruction(ctx, opcode); return false;
+DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(STRB2,interpretInstruction(cpu, ctx, opcode); return false;
 	/* cpu->memory.store8(cpu, cpu->gprs[rn] + cpu->gprs[rm], cpu->gprs[rd], &currentCycles); THUMB_STORE_POST_BODY;*/)
-DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(STRH2,interpretInstruction(ctx, opcode); return false;
+DEFINE_LOAD_STORE_WITH_REGISTER_THUMB(STRH2,interpretInstruction(cpu, ctx, opcode); return false;
 	/* cpu->memory.store16(cpu, cpu->gprs[rn] + cpu->gprs[rm], cpu->gprs[rd], &currentCycles); THUMB_STORE_POST_BODY;*/)
 
 #define DEFINE_LOAD_STORE_MULTIPLE_THUMB(NAME, RN, LS, DIRECTION, PRE_BODY, WRITEBACK) \
@@ -671,7 +687,7 @@ DEFINE_LOAD_STORE_MULTIPLE_THUMB(LDMIA,
 	load,
 	IA,
 	,
-	interpretInstruction(ctx, opcode); return false;
+	interpretInstruction(cpu, ctx, opcode); return false;
 	/*THUMB_LOAD_POST_BODY;
 	if (!((1 << rn) & rs)) {
 		cpu->gprs[rn] = address;
@@ -682,13 +698,13 @@ DEFINE_LOAD_STORE_MULTIPLE_THUMB(STMIA,
 	store,
 	IA,
 	,
-	interpretInstruction(ctx, opcode); return false;
+	interpretInstruction(cpu, ctx, opcode); return false;
 	/*THUMB_STORE_POST_BODY;
 	cpu->gprs[rn] = address;*/)
 
 #define DEFINE_CONDITIONAL_BRANCH_THUMB(COND) \
 	DEFINE_INSTRUCTION_THUMB(B ## COND, \
-		interpretInstruction(ctx, opcode); return false; \
+		interpretInstruction(cpu, ctx, opcode); return false; \
 		/* if (ARM_COND_ ## COND) { */ \
 			/* int8_t immediate = opcode; */ \
 			/* cpu->gprs[ARM_PC] += (int32_t) immediate << 1; */ \
@@ -710,9 +726,9 @@ DEFINE_CONDITIONAL_BRANCH_THUMB(LT)
 DEFINE_CONDITIONAL_BRANCH_THUMB(GT)
 DEFINE_CONDITIONAL_BRANCH_THUMB(LE)
 
-DEFINE_INSTRUCTION_THUMB(ADD7, interpretInstruction(ctx, opcode); return false; \
+DEFINE_INSTRUCTION_THUMB(ADD7, interpretInstruction(cpu, ctx, opcode); return false; \
 		/*cpu->gprs[ARM_SP] += (opcode & 0x7F) << 2*/)
-DEFINE_INSTRUCTION_THUMB(SUB4, interpretInstruction(ctx, opcode); return false; \
+DEFINE_INSTRUCTION_THUMB(SUB4, interpretInstruction(cpu, ctx, opcode); return false; \
 		/*cpu->gprs[ARM_SP] -= (opcode & 0x7F) << 2*/)
 
 DEFINE_LOAD_STORE_MULTIPLE_THUMB(POP,
@@ -720,7 +736,7 @@ DEFINE_LOAD_STORE_MULTIPLE_THUMB(POP,
 	load,
 	IA,
 	,
-	interpretInstruction(ctx, opcode); return false; \
+	interpretInstruction(cpu, ctx, opcode); return false; \
 		/*THUMB_LOAD_POST_BODY;
 	cpu->gprs[ARM_SP] = address*/)
 
@@ -729,7 +745,7 @@ DEFINE_LOAD_STORE_MULTIPLE_THUMB(POPR,
 	load,
 	IA,
 	/*rs |= 1 << ARM_PC*/,
-	interpretInstruction(ctx, opcode); return false; \
+	interpretInstruction(cpu, ctx, opcode); return false; \
 		/*THUMB_LOAD_POST_BODY;
 	cpu->gprs[ARM_SP] = address;
 	THUMB_WRITE_PC;*/)
@@ -739,7 +755,7 @@ DEFINE_LOAD_STORE_MULTIPLE_THUMB(PUSH,
 	store,
 	DB,
 	,
-	interpretInstruction(ctx, opcode); return false; \
+	interpretInstruction(cpu, ctx, opcode); return false; \
 		/*THUMB_STORE_POST_BODY;
 	cpu->gprs[ARM_SP] = address*/)
 
@@ -748,27 +764,27 @@ DEFINE_LOAD_STORE_MULTIPLE_THUMB(PUSHR,
 	store,
 	DB,
 	/*rs |= 1 << ARM_LR*/,
-	interpretInstruction(ctx, opcode); return false; \
+	interpretInstruction(cpu, ctx, opcode); return false; \
 		/*THUMB_STORE_POST_BODY;
 	cpu->gprs[ARM_SP] = address*/)
 
-DEFINE_INSTRUCTION_THUMB(ILL, interpretInstruction(ctx, opcode); return false; \
+DEFINE_INSTRUCTION_THUMB(ILL, interpretInstruction(cpu, ctx, opcode); return false; \
 		/*ARM_ILL*/)
-DEFINE_INSTRUCTION_THUMB(BKPT, interpretInstruction(ctx, opcode); return false; \
+DEFINE_INSTRUCTION_THUMB(BKPT, interpretInstruction(cpu, ctx, opcode); return false; \
 		/*cpu->irqh.bkpt16(cpu, opcode & 0xFF);*/)
 DEFINE_INSTRUCTION_THUMB(B,
-	interpretInstruction(ctx, opcode); return false; \
+	interpretInstruction(cpu, ctx, opcode); return false; \
 		/*int16_t immediate = (opcode & 0x07FF) << 5;
 	cpu->gprs[ARM_PC] += (((int32_t) immediate) >> 4);
 	THUMB_WRITE_PC;*/)
 
 DEFINE_INSTRUCTION_THUMB(BL1,
-	interpretInstruction(ctx, opcode); return false; \
+	interpretInstruction(cpu, ctx, opcode); return false; \
 		/*int16_t immediate = (opcode & 0x07FF) << 5;
 	cpu->gprs[ARM_LR] = cpu->gprs[ARM_PC] + (((int32_t) immediate) << 7);*/)
 
 DEFINE_INSTRUCTION_THUMB(BL2,
-	interpretInstruction(ctx, opcode); return false; \
+	interpretInstruction(cpu, ctx, opcode); return false; \
 		/*uint16_t immediate = (opcode & 0x07FF) << 1;
 	uint32_t pc = cpu->gprs[ARM_PC];
 	cpu->gprs[ARM_PC] = cpu->gprs[ARM_LR] + immediate;
@@ -776,7 +792,7 @@ DEFINE_INSTRUCTION_THUMB(BL2,
 	THUMB_WRITE_PC;*/)
 
 DEFINE_INSTRUCTION_THUMB(BX,
-	interpretInstruction(ctx, opcode); return false; \
+	interpretInstruction(cpu, ctx, opcode); return false; \
 		/*int rm = (opcode >> 3) & 0xF;
 	_ARMSetMode(cpu, cpu->gprs[rm] & 0x00000001);
 	int misalign = 0;
@@ -790,7 +806,7 @@ DEFINE_INSTRUCTION_THUMB(BX,
 		ARM_WRITE_PC;
 	}*/)
 
-DEFINE_INSTRUCTION_THUMB(SWI, interpretInstruction(ctx, opcode); return false; \
+DEFINE_INSTRUCTION_THUMB(SWI, interpretInstruction(cpu, ctx, opcode); return false; \
 		/*cpu->irqh.swi16(cpu, opcode & 0xFF)*/)
 
 const ThumbCompiler _thumbCompilerTable[0x400] = {

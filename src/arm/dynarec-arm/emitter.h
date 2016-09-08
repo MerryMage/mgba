@@ -20,6 +20,7 @@
 // #define REG_GUEST_R5 10
 // #define REG_GUEST_R6 11
 // #define REG_GUEST_R7 12
+#define REG_CYCLES   14
 #define REGLIST_SAVE 0x1001
 #define REGLIST_RETURN 0x8001
 // #define REGLIST_GUESTREGS 0x1DF0
@@ -51,11 +52,9 @@ struct ARMDynarecContext {
 
 	bool gpr_15_flushed;
 	uint32_t gpr_15; //!< The value that would be in cpu->gpr[15] if this were the interpreter.
-	uint32_t cycle_check_save_gpr_15;
 
 	bool prefetch_flushed;
 	uint32_t prefetch[2];
-	uint32_t cycle_check_save_prefetch[2];
 
 	bool nzcv_in_host_nzcv;
 };
