@@ -214,12 +214,6 @@ uint32_t emitMSR(bool nzcvq, bool g, unsigned src) {
     return OP_MSR | (nzcvq << 19) | (g << 18) | src;
 }
 
-void updatePC(struct ARMDynarecContext* ctx, uint32_t address) {
-	assert(!ctx->scratch0_in_use);
-	EMIT_IMM(ctx, AL, REG_SCRATCH0, address);
-	EMIT(ctx, STRI, AL, REG_SCRATCH0, REG_ARMCore, ARM_PC * sizeof(uint32_t));
-}
-
 void updateEvents(struct ARMDynarecContext* ctx, struct ARMCore* cpu, uint32_t expected_pc) {
 	assert(!ctx->scratch0_in_use && !ctx->scratch1_in_use);
 	EMIT(ctx, ADDI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(struct ARMCore, cycles));
@@ -274,15 +268,4 @@ void scratchesNotInUse(struct ARMDynarecContext* ctx) {
 	ctx->scratch0_in_use = false;
 	ctx->scratch1_in_use = false;
 	ctx->scratch2_in_use = false;
-}
-
-void flushCycles(struct ARMDynarecContext* ctx) {
-	assert(!ctx->scratch0_in_use);
-	if (ctx->cycles == 0) {
-		return;
-	}
-	EMIT(ctx, LDRI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(struct ARMCore, cycles));
-	EMIT(ctx, ADDI, AL, REG_SCRATCH0, REG_SCRATCH0, ctx->cycles);
-	EMIT(ctx, STRI, AL, REG_SCRATCH0, REG_ARMCore, offsetof(struct ARMCore, cycles));
-	ctx->cycles = 0;
 }

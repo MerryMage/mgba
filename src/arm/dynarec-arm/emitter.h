@@ -55,6 +55,8 @@ struct ARMDynarecContext {
 
 	bool prefetch_flushed;
 	uint32_t prefetch[2];
+
+	bool nzcv_in_host_nzcv;
 };
 
 #define EMIT_L(DEST, OPCODE, COND, ...) \
@@ -167,13 +169,9 @@ uint32_t emitBL(void* base, void* target);
 uint32_t emitMRS(unsigned dst);
 uint32_t emitMSR(bool nzcvq, bool g, unsigned src);
 
-void updatePC(struct ARMDynarecContext* ctx, uint32_t address);
 void updateEvents(struct ARMDynarecContext* ctx, struct ARMCore* cpu, uint32_t expected_pc);
 unsigned loadReg(struct ARMDynarecContext* ctx, unsigned emureg);
 void flushReg(struct ARMDynarecContext* ctx, unsigned emureg, unsigned sysreg);
 void scratchesNotInUse(struct ARMDynarecContext* ctx);
-void loadNZCV(struct ARMDynarecContext* ctx);
-void flushNZCV(struct ARMDynarecContext* ctx);
-void flushCycles(struct ARMDynarecContext* ctx);
 
 #endif
