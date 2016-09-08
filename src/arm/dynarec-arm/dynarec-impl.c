@@ -51,7 +51,7 @@ void flushCycles(struct ARMDynarecContext* ctx) {
 		assert(!ctx->scratch_in_use[1]);
 		EMIT(ctx, LDRI, AL, REG_SCRATCH1, REG_ARMCore, offsetof(struct ARMCore, nextEvent));
 		EMIT(ctx, SUB, AL, REG_SCRATCH1, REG_SCRATCH1, REG_CYCLES);
-		EMIT(ctx, SUBI, AL, REG_SCRATCH1, REG_SCRATCH1, 1); // MAGIC TRICK: CORRECT THE OFF BY ONE
+		EMIT(ctx, SUBI, AL, REG_SCRATCH1, REG_SCRATCH1, 1); // MAGIC TRICK: CORRECT THE OFF BY ONE =======
 		EMIT(ctx, STRI, AL, REG_SCRATCH1, REG_ARMCore, offsetof(struct ARMCore, cycles));
 		ctx->cycles_register_valid = false;
 	} else if (ctx->cycles) {
@@ -251,14 +251,18 @@ static void InterpretThumbInstructionNormally(struct ARMCore* cpu) {
 	instruction(cpu, opcode);
 }
 
-static void cyclesExceededCallback(struct ARMCore* cpu, int32_t cycles_remaining) {
-	cpu->cycles = cpu->nextEvent - cycles_remaining - 1; // MAGIC TRICK: CORRECT THE OFF BY ONE
+static void readPrefetchCallback(struct ARMCore* cpu) {
 	uint32_t pc = cpu->gprs[15];
 	uint16_t op0, op1;
 	LOAD_16(op0, (pc - 1 * WORD_SIZE_THUMB) & cpu->memory.activeMask, cpu->memory.activeRegion);
 	LOAD_16(op1, (pc - 0 * WORD_SIZE_THUMB) & cpu->memory.activeMask, cpu->memory.activeRegion);
 	cpu->prefetch[0] = op0;
 	cpu->prefetch[1] = op1;
+}
+
+static void cyclesExceededCallback(struct ARMCore* cpu, int32_t cycles_remaining) {
+	cpu->cycles = cpu->nextEvent - cycles_remaining - 1; // MAGIC TRICK: CORRECT THE OFF BY ONE
+	readPrefetchCallback(cpu);
 }
 
 void ARMDynarecEmitPrelude(struct ARMCore* cpu) {
@@ -379,17 +383,26 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 #define THUMB_NEUTRAL_S \
 	assert(ctx->nzcv_location == CONTEXT_NZCV_IN_HOST);
 
-#define THUMB_ADDITION(D, M, N) \
-	int n = N; \
-	int m = M; \
-	D = M + N; \
-	THUMB_ADDITION_S(m, n, D)
+void writePcCallback(struct ARMCore* cpu, uint32_t pc) {
+	cpu->gprs[ARM_PC] = pc;
+	cpu->memory.setActiveRegion(cpu, cpu->gprs[ARM_PC]);
+	LOAD_16(cpu->prefetch[0], cpu->gprs[ARM_PC] & cpu->memory.activeMask, cpu->memory.activeRegion);
+	cpu->gprs[ARM_PC] += WORD_SIZE_THUMB;
+	LOAD_16(cpu->prefetch[1], cpu->gprs[ARM_PC] & cpu->memory.activeMask, cpu->memory.activeRegion);
+	cpu->cycles += 2 + cpu->memory.activeNonseqCycles16 + cpu->memory.activeSeqCycles16;
+}
 
-#define THUMB_SUBTRACTION(D, M, N) \
-	int n = N; \
-	int m = M; \
-	D = M - N; \
-	THUMB_SUBTRACTION_S(m, n, D)
+#define THUMB_WRITE_PC(reg_pc)                                          \
+	lazyAddCycles(ctx, currentCycles);                                  \
+	flushRegCache(ctx);                                                 \
+	EMIT(ctx, BICI, AL, 4, reg_pc, 1);                                  \
+	destroyAllReg(ctx);                                                 \
+	flushNZCV(ctx);                                                     \
+	flushCycles(ctx);                                                   \
+	EMIT(ctx, MOV, AL, 1, 4);                                           \
+	EMIT(ctx, BL, AL, ctx->code, &writePcCallback);                     \
+	EMIT(ctx, B, AL, ctx->code, cpu->dynarec.epilogue);                 \
+	return false;
 
 #define THUMB_PREFETCH_CYCLES (1 + cpu->memory.activeSeqCycles16)
 
@@ -701,20 +714,35 @@ DEFINE_DATA_FORM_5_INSTRUCTION_THUMB(MVN,
 	DEFINE_INSTRUCTION_WITH_HIGH_EX_THUMB(NAME ## 11, 8, 8, BODY)
 
 DEFINE_INSTRUCTION_WITH_HIGH_THUMB(ADD4,
-	interpretInstruction(cpu, ctx, opcode); return false;
-	/*cpu->gprs[rd] += cpu->gprs[rm];
+	printf("add4 ");
+	unsigned reg_rd = loadReg(ctx, rd);
+	unsigned reg_rm = loadReg(ctx, rm);
+	EMIT(ctx, ADD, AL, reg_rd, reg_rd, reg_rm);
 	if (rd == ARM_PC) {
-		THUMB_WRITE_PC;
-	}*/)
+		THUMB_WRITE_PC(reg_rd);
+	} else {
+		flushReg(ctx, rd, reg_rd);
+		destroyAllReg(ctx);
+	})
 
-DEFINE_INSTRUCTION_WITH_HIGH_THUMB(CMP3, interpretInstruction(cpu, ctx, opcode); return false;
-	/*int32_t aluOut = cpu->gprs[rd] - cpu->gprs[rm]; THUMB_SUBTRACTION_S(cpu->gprs[rd], cpu->gprs[rm], aluOut)*/)
+DEFINE_INSTRUCTION_WITH_HIGH_THUMB(CMP3,
+	printf("cmp3 ");
+	unsigned reg_rd = loadReg(ctx, rd);
+	unsigned reg_rm = loadReg(ctx, rm);
+	EMIT(ctx, CMP, AL, reg_rd, reg_rm);
+	destroyAllReg(ctx);
+	THUMB_SUBTRACTION_S)
 DEFINE_INSTRUCTION_WITH_HIGH_THUMB(MOV3,
-	interpretInstruction(cpu, ctx, opcode); return false;
-	/*cpu->gprs[rd] = cpu->gprs[rm];
+	printf("mov3 ");
+	unsigned reg_rd = loadReg(ctx, rd);
+	unsigned reg_rm = loadReg(ctx, rm);
+	EMIT(ctx, MOV, AL, reg_rd, reg_rm);
 	if (rd == ARM_PC) {
-		THUMB_WRITE_PC;
-	}*/)
+		THUMB_WRITE_PC(reg_rd);
+	} else {
+		flushReg(ctx, rd, reg_rd);
+		destroyAllReg(ctx);
+	})
 
 #define DEFINE_IMMEDIATE_WITH_REGISTER_THUMB(NAME, BODY) \
 	DEFINE_INSTRUCTION_THUMB(NAME, \
