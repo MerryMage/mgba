@@ -119,6 +119,21 @@ static void flushPC(struct ARMDynarecContext* ctx) {
 
 static unsigned loadReg(struct ARMDynarecContext* ctx, unsigned guest_reg) {
 	assert(guest_reg <= 15);
+
+	if (guest_reg <= 7) {
+		switch (guest_reg) {
+		case 0: return REG_GUEST_R0;
+		case 1: return REG_GUEST_R1;
+		case 2: return REG_GUEST_R2;
+		case 3: return REG_GUEST_R3;
+		case 4: return REG_GUEST_R4;
+		case 5: return REG_GUEST_R5;
+		case 6: return REG_GUEST_R6;
+		case 7: return REG_GUEST_R7;
+		default: abort();
+		}
+	}
+
 	for (unsigned i = 0; i < 3; i++) {
 		if (ctx->scratch_in_use[i] && ctx->scratch_guest[i] == guest_reg) {
 			unsigned sysreg = i + 1;
@@ -143,6 +158,21 @@ static unsigned loadReg(struct ARMDynarecContext* ctx, unsigned guest_reg) {
 
 static void flushReg(struct ARMDynarecContext* ctx, unsigned guest_reg, unsigned sysreg) {
 	assert(guest_reg <= 15);
+
+	if (guest_reg <= 7) {
+		switch (guest_reg) {
+		case 0: assert(sysreg == REG_GUEST_R0); return;
+		case 1: assert(sysreg == REG_GUEST_R1); return;
+		case 2: assert(sysreg == REG_GUEST_R2); return;
+		case 3: assert(sysreg == REG_GUEST_R3); return;
+		case 4: assert(sysreg == REG_GUEST_R4); return;
+		case 5: assert(sysreg == REG_GUEST_R5); return;
+		case 6: assert(sysreg == REG_GUEST_R6); return;
+		case 7: assert(sysreg == REG_GUEST_R7); return;
+		default: abort();
+		}
+	}
+
 	assert(sysreg >= 1 && sysreg <= 3);
 	unsigned index = sysreg - 1;
 	assert(ctx->scratch_in_use[index]);
@@ -150,6 +180,10 @@ static void flushReg(struct ARMDynarecContext* ctx, unsigned guest_reg, unsigned
 	ctx->scratch_in_use[index] = false;
 	ctx->scratch_guest[index] = 99;
 	EMIT(ctx, STRI, AL, sysreg, REG_ARMCore, guest_reg * sizeof(uint32_t));
+}
+
+static void flushRegCache(struct ARMDynarecContext* ctx) {
+	EMIT(ctx, STMIA, AL, REG_ARMCore, REGLIST_GUESTREGS);
 }
 
 static void destroyAllReg(struct ARMDynarecContext* ctx) {
@@ -195,6 +229,7 @@ static void checkCycles(struct ARMCore* cpu, struct ARMDynarecContext* ctx) {
 
 static void interpretInstruction(struct ARMCore* cpu, struct ARMDynarecContext* ctx, uint16_t opcode) {
 	assert(!ctx->cycles);
+	flushRegCache(ctx);
 	flushNZCV(ctx);
 	flushPC(ctx);
 	flushPrefetch(ctx);
@@ -232,6 +267,7 @@ void ARMDynarecEmitPrelude(struct ARMCore* cpu) {
 	// Common prologue
 	cpu->dynarec.execute = (void (*)(struct ARMCore*, void*)) code;
 	EMIT_L(code, PUSH, AL, 0x4DF0);
+	EMIT_L(code, LDMIA, AL, REG_ARMCore, REGLIST_GUESTREGS);
 	EMIT_L(code, MOV, AL, 15, 1);
 
 	// Cycle check handler
@@ -240,6 +276,7 @@ void ARMDynarecEmitPrelude(struct ARMCore* cpu) {
 	EMIT_L(code, STRBI, AL, REG_NZCV_TMP, REG_ARMCore, (int)offsetof(struct ARMCore, cpsr) + 3);
 	cpu->dynarec.cycleCheckHandler = (void*) code;
 	EMIT_L(code, STRI, AL, REG_SCRATCH0, REG_ARMCore, 15 * sizeof(uint32_t));
+	EMIT_L(code, STMIA, AL, REG_ARMCore, REGLIST_GUESTREGS);
 	EMIT_L(code, MOV, AL, 1, REG_CYCLES);
 	EMIT_L(code, BL, AL, code, &cyclesExceededCallback);
 	// fallthrough to epilogue
