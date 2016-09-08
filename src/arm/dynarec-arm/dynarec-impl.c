@@ -51,6 +51,7 @@ void flushCycles(struct ARMDynarecContext* ctx) {
 		assert(!ctx->scratch_in_use[1]);
 		EMIT(ctx, LDRI, AL, REG_SCRATCH1, REG_ARMCore, offsetof(struct ARMCore, nextEvent));
 		EMIT(ctx, SUB, AL, REG_SCRATCH1, REG_SCRATCH1, REG_CYCLES);
+		EMIT(ctx, SUBI, AL, REG_SCRATCH1, REG_SCRATCH1, 1); // MAGIC TRICK: CORRECT THE OFF BY ONE
 		EMIT(ctx, STRI, AL, REG_SCRATCH1, REG_ARMCore, offsetof(struct ARMCore, cycles));
 		ctx->cycles_register_valid = false;
 	} else if (ctx->cycles) {
@@ -214,7 +215,7 @@ static void checkCycles(struct ARMCore* cpu, struct ARMDynarecContext* ctx) {
 		ctx->cycles++; // MAGIC TRICK: INTENTIONALLY BE OFF BY ONE
 		ctx->cycles_register_valid = true;
 	}
-	EMIT(ctx, SUBS, AL, REG_CYCLES, REG_CYCLES, ctx->cycles);
+	EMIT(ctx, SUBSI, AL, REG_CYCLES, REG_CYCLES, ctx->cycles);
 	ctx->cycles = 0;
 
 	assert(!ctx->scratch_in_use[0]);
