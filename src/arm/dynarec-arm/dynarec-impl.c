@@ -820,10 +820,18 @@ DEFINE_CONDITIONAL_BRANCH_THUMB(LT)
 DEFINE_CONDITIONAL_BRANCH_THUMB(GT)
 DEFINE_CONDITIONAL_BRANCH_THUMB(LE)
 
-DEFINE_INSTRUCTION_THUMB(ADD7, interpretInstruction(cpu, ctx, opcode); return false; \
-		/*cpu->gprs[ARM_SP] += (opcode & 0x7F) << 2*/)
-DEFINE_INSTRUCTION_THUMB(SUB4, interpretInstruction(cpu, ctx, opcode); return false; \
-		/*cpu->gprs[ARM_SP] -= (opcode & 0x7F) << 2*/)
+DEFINE_INSTRUCTION_THUMB(ADD7,
+	uint32_t immediate = (opcode & 0x7F) << 2;
+	unsigned reg_sp = loadReg(ctx, 13);
+	EMIT(ctx, ADDI, AL, reg_sp, reg_sp, immediate);
+	flushReg(ctx, 13, reg_sp);
+	destroyAllReg(ctx);)
+DEFINE_INSTRUCTION_THUMB(SUB4,
+	uint32_t immediate = (opcode & 0x7F) << 2;
+	unsigned reg_sp = loadReg(ctx, 13);
+	EMIT(ctx, SUBI, AL, reg_sp, reg_sp, immediate);
+	flushReg(ctx, 13, reg_sp);
+	destroyAllReg(ctx);)
 
 DEFINE_LOAD_STORE_MULTIPLE_THUMB(POP,
 	ARM_SP,
