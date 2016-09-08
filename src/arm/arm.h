@@ -147,6 +147,9 @@ struct ARMDynarec {
 	void* currentTrace;
 	void* temporaryMemory;
 	void (*execute)(struct ARMCore* cpu, void* execution_token);
+	void* epilogue;
+	void* saveNzcvAndCycleCheckHandler;
+	void* cycleCheckHandler;
 };
 
 struct ARMCore {
