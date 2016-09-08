@@ -257,6 +257,7 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 			continue_compilation = _thumbCompilerTable[opcode >> 6](cpu, &ctx, opcode);
 
 			saveStateForCycleCheck(&ctx);
+			checkCycles(&ctx);
 		}
 
 		//__clear_cache(trace->entry, ctx.code);
