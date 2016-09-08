@@ -13,18 +13,18 @@
 #define REG_SCRATCH1 2
 #define REG_SCRATCH2 3
 #define REG_NZCV_TMP 3
-// #define REG_GUEST_R0 4
-// #define REG_GUEST_R1 5
-// #define REG_GUEST_R2 6
-// #define REG_GUEST_R3 7
-// #define REG_GUEST_R4 8
-// #define REG_GUEST_R5 10
-// #define REG_GUEST_R6 11
-// #define REG_GUEST_R7 12
+#define REG_GUEST_R0 4
+#define REG_GUEST_R1 5
+#define REG_GUEST_R2 6
+#define REG_GUEST_R3 7
+#define REG_GUEST_R4 8
+#define REG_GUEST_R5 10
+#define REG_GUEST_R6 11
+#define REG_GUEST_R7 12
 #define REG_CYCLES   14
 #define REGLIST_SAVE 0x1001
 #define REGLIST_RETURN 0x8001
-// #define REGLIST_GUESTREGS 0x1DF0
+#define REGLIST_GUESTREGS 0x1DF0
 
 #define COND_EQ 0x00000000
 #define COND_NE 0x10000000
