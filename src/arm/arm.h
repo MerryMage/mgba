@@ -123,6 +123,7 @@ struct ARMMemory {
 	uint32_t activeNonseqCycles16;
 	int32_t (*stall)(struct ARMCore*, int32_t wait);
 	void (*setActiveRegion)(struct ARMCore*, uint32_t address);
+	struct ARMCore* (*setSameActiveRegion)(struct ARMCore*, uint32_t address);
 };
 
 struct ARMInterruptHandler {

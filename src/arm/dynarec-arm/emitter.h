@@ -49,6 +49,7 @@ enum ARMDynarecScratchState {
 	SCRATCH_STATE_DEF = 1,
 	SCRATCH_STATE_USE = 2,
 	SCRATCH_STATE_CONTAINS_NZCV = 4,
+	SCRATCH_STATE_CONTAINS_NEXT_EVENT = 8,
 };
 
 enum ARMDynarecRegCacheState {

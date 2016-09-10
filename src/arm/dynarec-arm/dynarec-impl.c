@@ -65,6 +65,88 @@ void ARMDynarecExecuteTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace) 
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// PatchPoints
+
+enum ARMDynarecPatchPointType {
+	PATCH_POINT_B,
+};
+
+struct ARMDynarecPatchPoint {
+	code_t* location;
+	enum ARMDynarecPatchPointType type;
+};
+
+DEFINE_VECTOR(ARMDynarecPatchPointList, struct ARMDynarecPatchPoint);
+
+void ARMDynarecTraceInit(struct ARMDynarecTrace* trace) {
+	ARMDynarecPatchPointListInit(&trace->patchPoints, 0);
+}
+
+void ARMDynarecTraceDeinit(struct ARMDynarecTrace* trace) {
+	ARMDynarecPatchPointListDeinit(&trace->patchPoints);
+}
+
+bool patchPatchPoint(struct ARMCore* cpu, struct ARMDynarecTrace* targetTrace, struct ARMDynarecPatchPoint* patchPoint, code_t** write_back) {
+	code_t* code = patchPoint->location;
+
+	uint32_t prefetch[2];
+	LOAD_16(prefetch[0], (targetTrace->start + 0 * WORD_SIZE_THUMB) & cpu->memory.activeMask, cpu->memory.activeRegion);
+	LOAD_16(prefetch[1], (targetTrace->start + 1 * WORD_SIZE_THUMB) & cpu->memory.activeMask, cpu->memory.activeRegion);
+
+	switch (patchPoint->type) {
+	case PATCH_POINT_B: {
+		uint32_t new_pc = (uint32_t)targetTrace->start;
+		new_pc &= -WORD_SIZE_THUMB;
+		new_pc += WORD_SIZE_THUMB;
+		int cycles = 3 + 2 * cpu->memory.activeSeqCycles16 + cpu->memory.activeNonseqCycles16;
+
+		if (targetTrace->entry && targetTrace->entryPlus4) {
+			EMIT_L(code, MOVW, AL, 3, prefetch[0] & 0xFFFF);
+			EMIT_L(code, MOVT, AL, 3, prefetch[0] >> 16);
+			EMIT_L(code, STRI, AL, 3, REG_ARMCore, offsetof(struct ARMCore, prefetch) + 0 * sizeof(uint32_t));
+			EMIT_L(code, MOVW, AL, 2, prefetch[1] & 0xFFFF);
+			EMIT_L(code, MOVT, AL, 2, prefetch[1] >> 16);
+			EMIT_L(code, STRI, AL, 2, REG_ARMCore, offsetof(struct ARMCore, prefetch) + 1 * sizeof(uint32_t));
+			EMIT_L(code, MOVW, AL, 1, new_pc & 0xFFFF);
+			EMIT_L(code, MOVT, AL, 1, new_pc >> 16);
+			EMIT_L(code, STRI, AL, 1, REG_ARMCore, offsetof(struct ARMCore, gprs) + 15 * sizeof(uint32_t));
+			EMIT_L(code, SUBI, AL, 1, 1, WORD_SIZE_THUMB);
+			EMIT_L(code, BL, AL, code, cpu->memory.setSameActiveRegion);
+			EMIT_L(code, LDRI, AL, 3, REG_ARMCore, offsetof(struct ARMCore, cycles));
+			EMIT_L(code, ADDI, AL, 3, 3, cycles);
+			EMIT_L(code, STRI, AL, 3, REG_ARMCore, offsetof(struct ARMCore, cycles));
+			EMIT_L(code, MOVW, AL, 1, ((uint32_t)targetTrace) & 0xFFFF);
+			EMIT_L(code, MOVT, AL, 1, ((uint32_t)targetTrace) >> 16);
+			EMIT_L(code, BL, AL, code, &ARMDynarecExecuteTrace);
+			EMIT_L(code, POP, AL, 0x8DF0);
+		} else {
+			EMIT_L(code, B, AL, 0, 17 * 4);
+			for (unsigned i = 0; i < 17; i++) {
+				EMIT_L(code, NOP, AL);
+			}
+		}
+		break;
+	}
+	default:
+		abort();
+	}
+
+	__clear_cache(patchPoint->location, code);
+	if (write_back) {
+		*write_back = code;
+	}
+	return targetTrace->entry && targetTrace->entryPlus4;
+}
+
+bool addPatchPoint(struct ARMCore* cpu, struct ARMDynarecContext* ctx, enum ARMDynarecPatchPointType type, uint32_t targetAddress) {
+	struct ARMDynarecTrace* targetTrace = ARMDynarecFindTrace(cpu, targetAddress, MODE_THUMB);
+	struct ARMDynarecPatchPoint* patchPoint = ARMDynarecPatchPointListAppend(&targetTrace->patchPoints);
+	patchPoint->location = ctx->code;
+	patchPoint->type = type;
+	return patchPatchPoint(cpu, targetTrace, patchPoint, &ctx->code);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Get Temporary
 
 static unsigned allocTemp(struct ARMDynarecContext* ctx) {
@@ -477,6 +559,10 @@ void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace
 		}
 		flushCycles(&ctx);
 		EMIT(&ctx, B, AL, ctx.code, selectEpilogue(cpu, &ctx));
+
+		for (unsigned index = 0; index < ARMDynarecPatchPointListSize(&trace->patchPoints); ++index) {
+			patchPatchPoint(cpu, trace, ARMDynarecPatchPointListGetPointer(&trace->patchPoints, index), 0);
+		}
 
 		//__clear_cache(trace->entry, ctx.code);
 		__clear_cache(trace->entryPlus4, ctx.code);
@@ -1153,12 +1239,15 @@ DEFINE_INSTRUCTION_THUMB(BKPT,
 	POP_REGLIST_SAVE;
 	continue_compilation = false;)
 DEFINE_INSTRUCTION_THUMB(B,
-	// TODO(merry): Block linking
-	FLUSH_HOST_NZCV
-	PREPARE_FOR_BL
-	flushPrefetch(ctx);
 	int16_t immediate = (opcode & 0x07FF) << 5;
 	uint32_t new_pc = ctx->gpr_15 + (((int32_t) immediate) >> 4);
+	FLUSH_HOST_NZCV
+	PREPARE_FOR_BL
+	flushRegisterCache(ctx);
+	if (addPatchPoint(cpu, ctx, PATCH_POINT_B, new_pc)) {
+		return false;
+	}
+	flushPrefetch(ctx);
 	unsigned reg_pc = defReg(ctx, ARM_PC);
 	EMIT_IMM(ctx, AL, reg_pc, new_pc);
 	saveRegs(ctx);

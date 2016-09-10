@@ -7,23 +7,32 @@
 #define ARM_DYNAREC_H
 
 #include "util/common.h"
+#include "util/vector.h"
 
 #include "arm/arm.h"
 
 struct ARMCore;
 enum ExecutionMode;
+struct ARMDynarecPatchPoint;
+
+DECLARE_VECTOR(ARMDynarecPatchPointList, struct ARMDynarecPatchPoint);
 
 struct ARMDynarecTrace {
 	enum ExecutionMode mode;
 	uint32_t start;
 	void* entry;
 	void* entryPlus4;
+    struct ARMDynarecPatchPointList patchPoints;
 };
+
+void ARMDynarecTraceInit(struct ARMDynarecTrace* trace);
+void ARMDynarecTraceDeinit(struct ARMDynarecTrace* trace);
 
 void ARMDynarecInit(struct ARMCore* cpu);
 void ARMDynarecDeinit(struct ARMCore* cpu);
 void ARMDynarecInvalidateCache(struct ARMCore* cpu);
 
+struct ARMDynarecTrace* ARMDynarecFindTrace(struct ARMCore* cpu, uint32_t address, enum ExecutionMode mode);
 void ARMDynarecCountTrace(struct ARMCore* cpu, uint32_t address, enum ExecutionMode mode);
 void ARMDynarecRecompileTrace(struct ARMCore* cpu, struct ARMDynarecTrace* trace);
 void ARMDynarecExecuteTrace(struct ARMCore* cpu, struct ARMDynarecTrace* execution_token);

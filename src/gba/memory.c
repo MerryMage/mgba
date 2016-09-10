@@ -22,6 +22,7 @@ static void _pristineCow(struct GBA* gba);
 static uint32_t _deadbeef[1] = { 0xE710B710 }; // Illegal instruction on both ARM and Thumb
 
 static void GBASetActiveRegion(struct ARMCore* cpu, uint32_t region);
+static struct ARMCore* GBASetSameActiveRegion(struct ARMCore* cpu, uint32_t region);
 static void GBAMemoryServiceDMA(struct GBA* gba, int number, struct GBADMA* info);
 static int32_t GBAMemoryStall(struct ARMCore* cpu, int32_t wait);
 
@@ -76,6 +77,7 @@ void GBAMemoryInit(struct GBA* gba) {
 	cpu->memory.activeRegion = 0;
 	cpu->memory.activeMask = 0;
 	cpu->memory.setActiveRegion = GBASetActiveRegion;
+	cpu->memory.setSameActiveRegion = GBASetSameActiveRegion;
 	cpu->memory.activeSeqCycles32 = 0;
 	cpu->memory.activeSeqCycles16 = 0;
 	cpu->memory.activeNonseqCycles32 = 0;
@@ -206,6 +208,16 @@ static void _analyzeForIdleLoop(struct GBA* gba, struct ARMCore* cpu, uint32_t a
 	} else {
 		gba->idleDetectionStep = -1;
 	}
+}
+
+static struct ARMCore* GBASetSameActiveRegion(struct ARMCore* cpu, uint32_t address) {
+	struct GBA* gba = (struct GBA*) cpu->master;
+	struct GBAMemory* memory = &gba->memory;
+
+	gba->lastJump = address;
+	memory->lastPrefetchedPc = 0;
+
+	return cpu;
 }
 
 static void GBASetActiveRegion(struct ARMCore* cpu, uint32_t address) {
