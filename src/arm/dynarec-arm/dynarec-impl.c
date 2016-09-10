@@ -380,8 +380,7 @@ void ARMDynarecEmitPrelude(struct ARMCore* cpu) {
 		EMIT_L(code, ADD, AL, REG_SCRATCH0, REG_SCRATCH0, REG_CYCLES);                                                \
 		EMIT_L(code, LDRHI, AL, REG_SCRATCH1, REG_SCRATCH0, 0);                                                       \
 		EMIT_L(code, STRI, AL, REG_SCRATCH1, REG_ARMCore, offsetof(struct ARMCore, prefetch) + 1 * sizeof(uint32_t)); \
-		EMIT_L(code, SUBI, AL, REG_SCRATCH0, REG_SCRATCH0, WORD_SIZE_THUMB);                                          \
-		EMIT_L(code, LDRHI, AL, REG_SCRATCH1, REG_SCRATCH0, 0);                                                       \
+		EMIT_L(code, LDRHI, AL, REG_SCRATCH1, REG_SCRATCH0, -WORD_SIZE_THUMB);                                        \
 		EMIT_L(code, STRI, AL, REG_SCRATCH1, REG_ARMCore, offsetof(struct ARMCore, prefetch) + 0 * sizeof(uint32_t)); \
 		EMIT_L(code, B, AL, code, cpu->dynarec.EPILOGUE);
 
