@@ -98,7 +98,7 @@ struct ARMDynarecContext {
 
 #define EMIT_BRANCH(CTX, COND) \
 	(CTX)->code; \
-	do {
+	do { \
 		*(CTX)->code = COND_ ## COND; \
 		++(CTX)->code; \
 	} while (0)
