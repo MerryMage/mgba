@@ -1129,20 +1129,39 @@ DEFINE_LOAD_STORE_MULTIPLE_THUMB(STMIA,
 
 #define DEFINE_CONDITIONAL_BRANCH_THUMB(COND) \
 	DEFINE_INSTRUCTION_THUMB(B ## COND, \
+		ctx->cycles += currentCycles; currentCycles = 0; \
+		int32_t offset = (int32_t)((int8_t)opcode) << 1; \
+		uint32_t pass_pc = ctx->gpr_15 + offset; \
+		uint32_t fail_pc = ctx->gpr_15; \
 		FLUSH_HOST_NZCV \
 		PREPARE_FOR_BL \
-		/* TODO: Block linking */ \
-		flushPrefetch(ctx); \
+		flushRegisterCache(ctx); \
 		loadNZCV(ctx); \
-		int32_t offset = (int32_t)((int8_t)opcode) << 1; \
-		unsigned reg_pc = defReg(ctx, ARM_PC); \
-		EMIT_IMM(ctx, AL, reg_pc, ctx->gpr_15); \
-		EMIT_IMM(ctx, COND, reg_pc, ctx->gpr_15 + offset); \
-		saveRegs(ctx); \
-		PUSH_REGLIST_SAVE; \
-		EMIT(ctx, BL, COND, ctx->code, &thumbWritePcCallback); \
-		POP_REGLIST_SAVE; \
-		continue_compilation = false;)
+		code_t* fixup = EMIT_BRANCH(ctx, COND); \
+		if (!addPatchPoint(cpu, ctx, PATCH_POINT_B, fail_pc)) { \
+			flushPrefetch(ctx); \
+			unsigned reg_pc = defReg(ctx, ARM_PC); \
+			EMIT_IMM(ctx, AL, reg_pc, fail_pc); \
+			saveRegs(ctx); \
+			PUSH_REGLIST_SAVE; \
+			EMIT(ctx, BL, AL, ctx->code, &thumbWritePcCallback); \
+			POP_REGLIST_SAVE; \
+			EMIT(ctx, B, AL, ctx->code, cpu->dynarec.epilogue); \
+		} \
+		FIXUP_BRANCH(ctx, fixup); \
+		if (!addPatchPoint(cpu, ctx, PATCH_POINT_B, pass_pc)) { \
+			flushPrefetch(ctx); \
+			unsigned reg_pc = defReg(ctx, ARM_PC); \
+			EMIT_IMM(ctx, AL, reg_pc, pass_pc); \
+			saveRegs(ctx); \
+			PUSH_REGLIST_SAVE; \
+			EMIT(ctx, BL, AL, ctx->code, &thumbWritePcCallback); \
+			POP_REGLIST_SAVE; \
+			EMIT(ctx, B, AL, ctx->code, cpu->dynarec.epilogue); \
+		} \
+		continue_compilation = false; \
+		assert(!ctx->cycles && !currentCycles); \
+		return false;)
 
 DEFINE_CONDITIONAL_BRANCH_THUMB(EQ)
 DEFINE_CONDITIONAL_BRANCH_THUMB(NE)
